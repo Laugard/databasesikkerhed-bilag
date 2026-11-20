@@ -1,0 +1,327 @@
+
+2026-11-20T10:15:01+01:00  $ docker compose -p dbsec08-2jfp8pwy -f [PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/compose.json config --format json
+{
+  "name": "dbsec08-2jfp8pwy",
+  "networks": {
+    "default": {
+      "name": "dbsec08-2jfp8pwy_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec08-2jfp8pwy_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec08-2jfp8pwy_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:15:01+01:00  $ docker ps -aq --filter label=com.docker.compose.project=dbsec08-2jfp8pwy
+
+exit 0
+
+2026-11-20T10:15:01+01:00  $ docker volume ls -q --filter label=com.docker.compose.project=dbsec08-2jfp8pwy
+
+exit 0
+
+2026-11-20T10:15:01+01:00  $ docker network ls -q --filter label=com.docker.compose.project=dbsec08-2jfp8pwy
+
+exit 0
+
+2026-11-20T10:15:01+01:00  $ docker compose -p dbsec08-2jfp8pwy -f [PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/compose.json up -d
+ Network dbsec08-2jfp8pwy_default  Creating
+ Network dbsec08-2jfp8pwy_default  Created
+ Volume "dbsec08-2jfp8pwy_data"  Creating
+ Volume "dbsec08-2jfp8pwy_data"  Created
+ Container dbsec08-2jfp8pwy-postgres-1  Creating
+ Container dbsec08-2jfp8pwy-postgres-1  Created
+ Container dbsec08-2jfp8pwy-postgres-1  Starting
+ Container dbsec08-2jfp8pwy-postgres-1  Started
+exit 0
+
+2026-11-20T10:15:01+01:00  $ docker compose -p dbsec08-2jfp8pwy -f [PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/compose.json ps -q postgres
+6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc
+exit 0
+
+2026-11-20T10:15:03+01:00  $ docker exec 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT rolname,rolcanlogin,rolsuper FROM pg_roles ORDER BY 1;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+app_admin|t|f
+app_laeser|t|f
+app_skriver|t|f
+pg_checkpoint|f|f
+pg_create_subscription|f|f
+pg_database_owner|f|f
+pg_execute_server_program|f|f
+pg_maintain|f|f
+pg_monitor|f|f
+pg_read_all_data|f|f
+pg_read_all_settings|f|f
+pg_read_all_stats|f|f
+pg_read_server_files|f|f
+pg_signal_autovacuum_worker|f|f
+pg_signal_backend|f|f
+pg_stat_scan_tables|f|f
+pg_use_reserved_connections|f|f
+pg_write_all_data|f|f
+pg_write_server_files|f|f
+studie|t|t
+exit 0
+SQL
+GRANT USAGE ON SCHEMA public TO app_laeser;
+GRANT SELECT ON hemmelig_data TO app_laeser;
+SET ROLE app_laeser;
+SELECT current_user,count(*) FROM hemmelig_data;
+RESET ROLE;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+GRANT
+GRANT
+SET
+app_laeser|6
+RESET
+exit 0
+SQL
+SET ROLE app_laeser;
+INSERT INTO hemmelig_data(navn,hemmelighed,ejer) VALUES('test','syntetisk','app_skriver');
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+SET
+ERROR:  42501: permission denied for table hemmelig_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 3
+Bekræftet forventet afvisning / 42501.*permission denied for table
+SQL
+GRANT SELECT,INSERT,UPDATE ON hemmelig_data TO app_skriver;
+GRANT USAGE,SELECT ON SEQUENCE hemmelig_data_id_seq TO app_skriver;
+GRANT ALL ON hemmelig_data TO app_admin;
+SET ROLE app_skriver;
+INSERT INTO hemmelig_data(navn,hemmelighed,ejer) VALUES('test','syntetisk','app_skriver');
+UPDATE hemmelig_data SET navn='ændret' WHERE ejer=current_user;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+GRANT
+GRANT
+GRANT
+SET
+INSERT 0 1
+UPDATE 1
+exit 0
+SQL
+SET ROLE app_skriver;
+DELETE FROM hemmelig_data WHERE ejer=current_user;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+SET
+ERROR:  42501: permission denied for table hemmelig_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 3
+Bekræftet forventet afvisning / 42501.*permission denied for table
+SQL
+SET ROLE app_admin;
+BEGIN;
+DELETE FROM hemmelig_data WHERE ejer='app_skriver';
+ROLLBACK;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+SET
+BEGIN
+DELETE 1
+ROLLBACK
+exit 0
+SQL
+REVOKE UPDATE ON hemmelig_data FROM app_skriver;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+REVOKE
+exit 0
+SQL
+SET ROLE app_skriver;
+UPDATE hemmelig_data SET navn='rettet' WHERE ejer=current_user;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+SET
+ERROR:  42501: permission denied for table hemmelig_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 3
+Bekræftet forventet afvisning / 42501.*permission denied for table
+SQL
+CREATE ROLE tabelejer NOLOGIN NOSUPERUSER NOBYPASSRLS;
+CREATE ROLE revision NOLOGIN NOSUPERUSER BYPASSRLS;
+GRANT SELECT ON hemmelig_data TO revision;
+ALTER TABLE hemmelig_data OWNER TO tabelejer;
+ALTER TABLE hemmelig_data ENABLE ROW LEVEL SECURITY;
+CREATE POLICY ejer_policy ON hemmelig_data USING (ejer=current_user);
+SET ROLE app_laeser;
+SELECT navn,ejer FROM hemmelig_data ORDER BY id;
+SELECT current_user,count(*),bool_and(ejer=current_user) FROM hemmelig_data;
+RESET ROLE;
+SET ROLE tabelejer;
+SELECT current_user,count(*) FROM hemmelig_data;
+RESET ROLE;
+ALTER TABLE hemmelig_data FORCE ROW LEVEL SECURITY;
+SET ROLE tabelejer;
+SELECT current_user,count(*) FROM hemmelig_data;
+RESET ROLE;
+SET ROLE revision;
+SELECT current_user,count(*) FROM hemmelig_data;
+RESET ROLE;
+SELECT current_user,count(*) FROM hemmelig_data;
+SELECT grantee,privilege_type FROM information_schema.role_table_grants WHERE table_name='hemmelig_data' ORDER BY 1,2;
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+CREATE ROLE
+CREATE ROLE
+GRANT
+ALTER TABLE
+ALTER TABLE
+CREATE POLICY
+SET
+app_laeser egne noter|app_laeser
+app_laeser anden række|app_laeser
+app_laeser|2|t
+RESET
+SET
+tabelejer|7
+RESET
+ALTER TABLE
+SET
+tabelejer|0
+RESET
+SET
+revision|7
+RESET
+studie|7
+app_admin|DELETE
+app_admin|INSERT
+app_admin|REFERENCES
+app_admin|SELECT
+app_admin|TRIGGER
+app_admin|TRUNCATE
+app_admin|UPDATE
+app_laeser|SELECT
+app_skriver|INSERT
+app_skriver|SELECT
+revision|SELECT
+tabelejer|DELETE
+tabelejer|INSERT
+tabelejer|REFERENCES
+tabelejer|SELECT
+tabelejer|TRIGGER
+tabelejer|TRUNCATE
+tabelejer|UPDATE
+exit 0
+SQL
+ALTER ROLE app_laeser PASSWORD '[udeladt]';
+
+2026-11-20T10:15:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ALTER ROLE
+exit 0
+TCP / SELECT session_user,current_user,count(*),bool_and(ejer=current_user) FROM hemmelig_data;
+
+2026-11-20T10:15:04+01:00  $ docker exec -i -e PGPASSWORD 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -h postgres -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U app_laeser -d studiebase
+app_laeser|app_laeser|2|t
+exit 0
+TCP / INSERT INTO hemmelig_data(navn,hemmelighed,ejer) VALUES('test','syntetisk','app_skriver');
+
+2026-11-20T10:15:04+01:00  $ docker exec -i -e PGPASSWORD 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -h postgres -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U app_laeser -d studiebase
+ERROR:  42501: permission denied for table hemmelig_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 3
+Bekræftet forventet afvisning / 42501.*permission denied for table
+TCP / UPDATE hemmelig_data SET navn='x' WHERE ejer=current_user;
+
+2026-11-20T10:15:04+01:00  $ docker exec -i -e PGPASSWORD 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -h postgres -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U app_laeser -d studiebase
+ERROR:  42501: permission denied for table hemmelig_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 3
+Bekræftet forventet afvisning / 42501.*permission denied for table
+TCP / DELETE FROM hemmelig_data WHERE ejer=current_user;
+
+2026-11-20T10:15:04+01:00  $ docker exec -i -e PGPASSWORD 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc psql -h postgres -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U app_laeser -d studiebase
+ERROR:  42501: permission denied for table hemmelig_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 3
+Bekræftet forventet afvisning / 42501.*permission denied for table
+
+2026-11-20T10:15:04+01:00  $ docker compose -p dbsec08-2jfp8pwy -f [PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/compose.json ps -a -q
+6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc
+exit 0
+
+2026-11-20T10:15:04+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 6f1a0ee19e58371d855582049cbd9eec15a79eea6e1d953752b917415b4de5cc
+dbsec08-2jfp8pwy
+exit 0
+
+2026-11-20T10:15:04+01:00  $ docker compose -p dbsec08-2jfp8pwy -f [PROJEKTMAPPE]/kontrol/dbsec08-2jfp8pwy/compose.json down -v --timeout 8
+ Container dbsec08-2jfp8pwy-postgres-1  Stopping
+ Container dbsec08-2jfp8pwy-postgres-1  Stopped
+ Container dbsec08-2jfp8pwy-postgres-1  Removing
+ Container dbsec08-2jfp8pwy-postgres-1  Removed
+ Volume dbsec08-2jfp8pwy_data  Removing
+ Network dbsec08-2jfp8pwy_default  Removing
+ Volume dbsec08-2jfp8pwy_data  Removed
+ Network dbsec08-2jfp8pwy_default  Removed
+exit 0
+2026-11-20T10:15:04+01:00  PASS

@@ -1,0 +1,318 @@
+
+2026-11-20T10:05:20+01:00  $ docker compose -p dbsec07-srn65cvu -f [PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/compose.json config --format json
+{
+  "name": "dbsec07-srn65cvu",
+  "networks": {
+    "default": {
+      "name": "dbsec07-srn65cvu_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec07-srn65cvu_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB",
+        "-c",
+        "log_connections=on",
+        "-c",
+        "log_statement=none",
+        "-c",
+        "log_min_duration_statement=500"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec07-srn65cvu_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:05:20+01:00  $ docker compose -p dbsec07-srn65cvu -f [PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/compose.json up -d
+ Network dbsec07-srn65cvu_default  Creating
+ Network dbsec07-srn65cvu_default  Created
+ Volume "dbsec07-srn65cvu_data"  Creating
+ Volume "dbsec07-srn65cvu_data"  Created
+ Container dbsec07-srn65cvu-postgres-1  Creating
+ Container dbsec07-srn65cvu-postgres-1  Created
+ Container dbsec07-srn65cvu-postgres-1  Starting
+ Container dbsec07-srn65cvu-postgres-1  Started
+exit 0
+
+2026-11-20T10:05:21+01:00  $ docker compose -p dbsec07-srn65cvu -f [PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/compose.json ps -q postgres
+2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061
+exit 0
+
+2026-11-20T10:05:22+01:00  $ docker exec 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SHOW log_destination;
+SHOW log_statement;
+SHOW log_min_duration_statement;
+SHOW log_connections;
+SELECT name,setting FROM pg_settings WHERE name LIKE 'log%' ORDER BY name;
+
+2026-11-20T10:05:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+stderr
+none
+500ms
+on
+log_autovacuum_min_duration|600000
+log_checkpoints|on
+log_connections|on
+log_destination|stderr
+log_directory|log
+log_disconnections|off
+log_duration|off
+log_error_verbosity|default
+log_executor_stats|off
+log_file_mode|0600
+log_filename|postgresql-%Y-%m-%d_%H%M%S.log
+logging_collector|off
+log_hostname|off
+logical_decoding_work_mem|65536
+log_line_prefix|%m [%p] 
+log_lock_failures|off
+log_lock_waits|off
+log_min_duration_sample|-1
+log_min_duration_statement|500
+log_min_error_statement|error
+log_min_messages|warning
+log_parameter_max_length|-1
+log_parameter_max_length_on_error|0
+log_parser_stats|off
+log_planner_stats|off
+log_recovery_conflict_waits|off
+log_replication_commands|off
+log_rotation_age|1440
+log_rotation_size|10240
+log_startup_progress_interval|10000
+log_statement|none
+log_statement_sample_rate|1
+log_statement_stats|off
+log_temp_files|-1
+log_timezone|Etc/UTC
+log_transaction_sample_rate|0
+log_truncate_on_rotation|off
+exit 0
+SQL
+SET log_statement='all';
+SELECT * FROM konto_log /* hele_tabellen */;
+SELECT * FROM konto_log WHERE beloeb>1000 /* kun_store */;
+SET log_statement='none';
+SET log_min_duration_statement=0;
+SELECT pg_sleep(0.05) /* maal_alle */;
+SET log_min_duration_statement=500;
+SELECT 42 /* hurtig_usynlig */;
+SELECT pg_sleep(0.55) /* overskrider_500 */;
+
+2026-11-20T10:05:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+SET
+1|kasse|1000.00|2026-11-20 09:05:21.663859
+2|reserve|5000.00|2026-11-20 09:05:21.663859
+3|løn|42000.00|2026-11-20 09:05:21.663859
+2|reserve|5000.00|2026-11-20 09:05:21.663859
+3|løn|42000.00|2026-11-20 09:05:21.663859
+SET
+SET
+
+SET
+42
+exit 0
+SQL
+SET log_statement='all';
+SELECT 1/0 /* nulfejl */;
+
+2026-11-20T10:05:23+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+SET
+ERROR:  22012: division by zero
+LOCATION:  int4div, int.c:870
+exit 3
+Bekræftet forventet afvisning / 22012.*division by zero
+SQL
+SELECT 1;
+
+2026-11-20T10:05:23+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+1
+exit 0
+
+2026-11-20T10:05:23+01:00  $ docker logs --timestamps 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061
+2026-11-20T09:05:21.068876926Z The files belonging to this database system will be owned by user "postgres".
+2026-11-20T09:05:21.068908134Z This user must also own the server process.
+2026-11-20T09:05:21.068909759Z 
+2026-11-20T09:05:21.068910676Z The database cluster will be initialized with locale "en_US.utf8".
+2026-11-20T09:05:21.068911717Z The default database encoding has accordingly been set to "UTF8".
+2026-11-20T09:05:21.068912676Z The default text search configuration will be set to "english".
+2026-11-20T09:05:21.068913592Z 
+2026-11-20T09:05:21.068914467Z Data page checksums are enabled.
+2026-11-20T09:05:21.068963342Z 
+2026-11-20T09:05:21.068966342Z fixing permissions on existing directory /var/lib/postgresql/18/docker ... ok
+2026-11-20T09:05:21.069278467Z creating subdirectories ... ok
+2026-11-20T09:05:21.069283092Z selecting dynamic shared memory implementation ... posix
+2026-11-20T09:05:21.078396592Z selecting default "max_connections" ... 100
+2026-11-20T09:05:21.090857592Z selecting default "shared_buffers" ... 128MB
+2026-11-20T09:05:21.111450301Z selecting default time zone ... Etc/UTC
+2026-11-20T09:05:21.111702134Z creating configuration files ... ok
+2026-11-20T09:05:21.183941051Z running bootstrap script ... ok
+2026-11-20T09:05:21.385099384Z performing post-bootstrap initialization ... ok
+2026-11-20T09:05:21.452044384Z initdb: warning: enabling "trust" authentication for local connections
+2026-11-20T09:05:21.452061384Z initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-11-20T09:05:21.452044384Z syncing data to disk ... ok
+2026-11-20T09:05:21.452064801Z 
+2026-11-20T09:05:21.452065634Z 
+2026-11-20T09:05:21.452066467Z Success. You can now start the database server using:
+2026-11-20T09:05:21.452067342Z 
+2026-11-20T09:05:21.452068092Z     pg_ctl -D /var/lib/postgresql/18/docker -l logfile start
+2026-11-20T09:05:21.452068967Z 
+2026-11-20T09:05:21.473307801Z waiting for server to start....2026-11-20 09:05:21.473 UTC [60] LOG:  starting PostgreSQL 18.7 (Debian 18.7-1.pgdg13+5) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-11-20T09:05:21.473880967Z 2026-11-20 09:05:21.473 UTC [60] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-11-20T09:05:21.475875259Z 2026-11-20 09:05:21.475 UTC [66] LOG:  database system was shut down at 2026-11-20 09:05:21 UTC
+2026-11-20T09:05:21.477809717Z 2026-11-20 09:05:21.477 UTC [60] LOG:  database system is ready to accept connections
+2026-11-20T09:05:21.567943301Z  done
+2026-11-20T09:05:21.567950093Z server started
+2026-11-20T09:05:21.590121176Z 2026-11-20 09:05:21.589 UTC [72] LOG:  connection received: host=[local]
+2026-11-20T09:05:21.590528093Z 2026-11-20 09:05:21.590 UTC [72] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:21.590538301Z 2026-11-20 09:05:21.590 UTC [72] LOG:  connection authorized: user=studie database=postgres application_name=psql
+2026-11-20T09:05:21.611501301Z 2026-11-20 09:05:21.611 UTC [74] LOG:  connection received: host=[local]
+2026-11-20T09:05:21.611885468Z 2026-11-20 09:05:21.611 UTC [74] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:21.611890926Z 2026-11-20 09:05:21.611 UTC [74] LOG:  connection authorized: user=studie database=postgres application_name=psql
+2026-11-20T09:05:21.642326176Z CREATE DATABASE
+2026-11-20T09:05:21.642761176Z 
+2026-11-20T09:05:21.642916634Z 
+2026-11-20T09:05:21.642929051Z /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/01-init.sql
+2026-11-20T09:05:21.658218551Z 2026-11-20 09:05:21.658 UTC [76] LOG:  connection received: host=[local]
+2026-11-20T09:05:21.658567218Z 2026-11-20 09:05:21.658 UTC [76] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:21.658576134Z 2026-11-20 09:05:21.658 UTC [76] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:21.661000551Z 2026-11-20 09:05:21.660 UTC [77] LOG:  connection received: host=[local]
+2026-11-20T09:05:21.661249968Z 2026-11-20 09:05:21.661 UTC [77] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:21.661253468Z 2026-11-20 09:05:21.661 UTC [77] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:21.661663884Z You are now connected to database "studiebase" as user "studie".
+2026-11-20T09:05:21.661921384Z psql:/docker-entrypoint-initdb.d/01-init.sql:6: NOTICE:  table "konto_log" does not exist, skipping
+2026-11-20T09:05:21.661929593Z DROP TABLE
+2026-11-20T09:05:21.663896551Z CREATE TABLE
+2026-11-20T09:05:21.664426259Z INSERT 0 3
+2026-11-20T09:05:21.710814551Z VACUUM
+2026-11-20T09:05:21.711302093Z DO
+2026-11-20T09:05:21.711318134Z psql:/docker-entrypoint-initdb.d/01-init.sql:27: NOTICE:  Tabel konto_log oprettet med 3 rækker. Klar til logningsøvelser.
+2026-11-20T09:05:21.711634343Z 
+2026-11-20T09:05:21.711637676Z 
+2026-11-20T09:05:21.712137343Z waiting for server to shut down....2026-11-20 09:05:21.712 UTC [60] LOG:  received fast shutdown request
+2026-11-20T09:05:21.713016676Z 2026-11-20 09:05:21.712 UTC [60] LOG:  aborting any active transactions
+2026-11-20T09:05:21.714173426Z 2026-11-20 09:05:21.714 UTC [60] LOG:  background worker "logical replication launcher" (PID 69) exited with exit code 1
+2026-11-20T09:05:21.714214009Z 2026-11-20 09:05:21.714 UTC [64] LOG:  shutting down
+2026-11-20T09:05:21.715023551Z 2026-11-20 09:05:21.714 UTC [64] LOG:  checkpoint starting: shutdown immediate
+2026-11-20T09:05:21.746067634Z 2026-11-20 09:05:21.745 UTC [64] LOG:  checkpoint complete: wrote 999 buffers (6.1%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.014 s, sync=0.016 s, total=0.032 s; sync files=317, longest=0.005 s, average=0.001 s; distance=4855 kB, estimate=4855 kB; lsn=0/1C31CC8, redo lsn=0/1C31CC8
+2026-11-20T09:05:21.751077801Z 2026-11-20 09:05:21.750 UTC [60] LOG:  database system is shut down
+2026-11-20T09:05:21.817222968Z  done
+2026-11-20T09:05:21.817230384Z server stopped
+2026-11-20T09:05:21.818102759Z 
+2026-11-20T09:05:21.818106551Z PostgreSQL init process complete; ready for start up.
+2026-11-20T09:05:21.818107843Z 
+2026-11-20T09:05:21.832123426Z 2026-11-20 09:05:21.831 UTC [1] LOG:  starting PostgreSQL 18.7 (Debian 18.7-1.pgdg13+5) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-11-20T09:05:21.832216343Z 2026-11-20 09:05:21.832 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-11-20T09:05:21.832220218Z 2026-11-20 09:05:21.832 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-11-20T09:05:21.833528384Z 2026-11-20 09:05:21.833 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-11-20T09:05:21.835784301Z 2026-11-20 09:05:21.835 UTC [92] LOG:  database system was shut down at 2026-11-20 09:05:21 UTC
+2026-11-20T09:05:21.852028384Z 2026-11-20 09:05:21.851 UTC [1] LOG:  database system is ready to accept connections
+2026-11-20T09:05:22.428817218Z 2026-11-20 09:05:22.428 UTC [109] LOG:  connection received: host=[local]
+2026-11-20T09:05:22.429207343Z 2026-11-20 09:05:22.429 UTC [109] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:22.429211426Z 2026-11-20 09:05:22.429 UTC [109] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:22.511974343Z 2026-11-20 09:05:22.511 UTC [116] LOG:  connection received: host=[local]
+2026-11-20T09:05:22.512310426Z 2026-11-20 09:05:22.512 UTC [116] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:22.512322635Z 2026-11-20 09:05:22.512 UTC [116] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:22.594037676Z 2026-11-20 09:05:22.593 UTC [123] LOG:  connection received: host=[local]
+2026-11-20T09:05:22.594362218Z 2026-11-20 09:05:22.594 UTC [123] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:22.594373718Z 2026-11-20 09:05:22.594 UTC [123] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:22.669577635Z 2026-11-20 09:05:22.669 UTC [129] LOG:  connection received: host=[local]
+2026-11-20T09:05:22.669907176Z 2026-11-20 09:05:22.669 UTC [129] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:22.669929968Z 2026-11-20 09:05:22.669 UTC [129] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:22.670570760Z 2026-11-20 09:05:22.670 UTC [129] LOG:  statement: SELECT * FROM konto_log /* hele_tabellen */;
+2026-11-20T09:05:22.671586051Z 2026-11-20 09:05:22.671 UTC [129] LOG:  statement: SELECT * FROM konto_log WHERE beloeb>1000 /* kun_store */;
+2026-11-20T09:05:22.672079010Z 2026-11-20 09:05:22.672 UTC [129] LOG:  statement: SET log_statement='none';
+2026-11-20T09:05:22.672205343Z 2026-11-20 09:05:22.672 UTC [129] LOG:  duration: 0.016 ms  statement: SET log_min_duration_statement=0;
+2026-11-20T09:05:22.724418843Z 2026-11-20 09:05:22.724 UTC [129] LOG:  duration: 52.022 ms  statement: SELECT pg_sleep(0.05) /* maal_alle */;
+2026-11-20T09:05:23.279911385Z 2026-11-20 09:05:23.278 UTC [129] LOG:  duration: 553.580 ms  statement: SELECT pg_sleep(0.55) /* overskrider_500 */;
+2026-11-20T09:05:23.382996468Z 2026-11-20 09:05:23.382 UTC [136] LOG:  connection received: host=[local]
+2026-11-20T09:05:23.383415552Z 2026-11-20 09:05:23.383 UTC [136] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:23.383428177Z 2026-11-20 09:05:23.383 UTC [136] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+2026-11-20T09:05:23.384280510Z 2026-11-20 09:05:23.384 UTC [136] LOG:  statement: SELECT 1/0 /* nulfejl */;
+2026-11-20T09:05:23.384443468Z 2026-11-20 09:05:23.384 UTC [136] ERROR:  division by zero
+2026-11-20T09:05:23.384449677Z 2026-11-20 09:05:23.384 UTC [136] STATEMENT:  SELECT 1/0 /* nulfejl */;
+2026-11-20T09:05:23.455168343Z 2026-11-20 09:05:23.455 UTC [143] LOG:  connection received: host=[local]
+2026-11-20T09:05:23.455635802Z 2026-11-20 09:05:23.455 UTC [143] LOG:  connection authenticated: user="studie" method=trust (/var/lib/postgresql/18/docker/pg_hba.conf:117)
+2026-11-20T09:05:23.455640052Z 2026-11-20 09:05:23.455 UTC [143] LOG:  connection authorized: user=studie database=studiebase application_name=psql
+exit 0
+Logkontrol: to SELECT, to varigheder, fejl og forbindelse fundet. Markør hurtig_usynlig forekommer 0 gange i serverloggen.
+
+2026-11-20T10:05:23+01:00  $ docker compose -p dbsec07-srn65cvu -f [PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/compose.json ps -a -q
+2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061
+exit 0
+
+2026-11-20T10:05:23+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 2678c6deab3f9e73e1f5238b28627cad473c62f1ad1d3390fdbebf5616d8c061
+dbsec07-srn65cvu
+exit 0
+
+2026-11-20T10:05:23+01:00  $ docker compose -p dbsec07-srn65cvu -f [PROJEKTMAPPE]/kontrol/dbsec07-srn65cvu/compose.json down -v --timeout 8
+ Container dbsec07-srn65cvu-postgres-1  Stopping
+ Container dbsec07-srn65cvu-postgres-1  Stopped
+ Container dbsec07-srn65cvu-postgres-1  Removing
+ Container dbsec07-srn65cvu-postgres-1  Removed
+ Volume dbsec07-srn65cvu_data  Removing
+ Network dbsec07-srn65cvu_default  Removing
+ Volume dbsec07-srn65cvu_data  Removed
+ Network dbsec07-srn65cvu_default  Removed
+exit 0
+2026-11-20T10:05:23+01:00  PASS

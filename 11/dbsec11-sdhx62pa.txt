@@ -1,0 +1,161 @@
+
+2026-11-20T10:07:11+01:00  $ docker compose -p dbsec11-sdhx62pa -f [PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/compose.json config --format json
+{
+  "name": "dbsec11-sdhx62pa",
+  "networks": {
+    "default": {
+      "name": "dbsec11-sdhx62pa_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec11-sdhx62pa_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec11-sdhx62pa_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:07:12+01:00  $ docker compose -p dbsec11-sdhx62pa -f [PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/compose.json up -d
+ Network dbsec11-sdhx62pa_default  Creating
+ Network dbsec11-sdhx62pa_default  Created
+ Volume "dbsec11-sdhx62pa_data"  Creating
+ Volume "dbsec11-sdhx62pa_data"  Created
+ Container dbsec11-sdhx62pa-postgres-1  Creating
+ Container dbsec11-sdhx62pa-postgres-1  Created
+ Container dbsec11-sdhx62pa-postgres-1  Starting
+ Container dbsec11-sdhx62pa-postgres-1  Started
+exit 0
+
+2026-11-20T10:07:12+01:00  $ docker compose -p dbsec11-sdhx62pa -f [PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/compose.json ps -q postgres
+650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77
+exit 0
+
+2026-11-20T10:07:14+01:00  $ docker exec 650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT extname,extversion FROM pg_extension WHERE extname='pgcrypto';
+
+2026-11-20T10:07:14+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+pgcrypto|1.4
+exit 0
+SQL
+SELECT brugernavn,pg_typeof(cpr_krypteret),octet_length(cpr_krypteret),
+ left(encode(cpr_krypteret,'hex'),16) AS binaer_praefiks
+ FROM brugere_krypteret ORDER BY id LIMIT 3;
+
+2026-11-20T10:07:14+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+bruger1|bytea|115|c30d04070302f7b8
+bruger2|bytea|115|c30d04070302047b
+bruger3|bytea|115|c30d04070302ade5
+exit 0
+SQL
+SELECT id,brugernavn,length(pgp_sym_decrypt(cpr_krypteret,'[udeladt]')),length('[udeladt]'),
+ starts_with(pgp_sym_decrypt(cpr_krypteret,'[udeladt]'),'[udeladt]'),
+ pgp_sym_decrypt(cpr_krypteret,'[udeladt]')=('[udeladt]' || substring(brugernavn from 7)) AS matcher_brugernavn
+ FROM brugere_krypteret ORDER BY id LIMIT 3;
+
+2026-11-20T10:07:14+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+1|bruger1|49|48|f|f
+2|bruger2|49|48|f|f
+3|bruger3|49|48|f|f
+exit 0
+SQL
+SELECT count(*),bool_and(pgp_sym_decrypt(cpr_krypteret,'[udeladt]')=('[udeladt]'||substring(brugernavn from 7))) FROM brugere_krypteret;
+SELECT pgp_sym_encrypt('[udeladt]','[udeladt]')<>pgp_sym_encrypt('[udeladt]','[udeladt]');
+
+2026-11-20T10:07:14+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+100|f
+t
+exit 0
+Traceback (most recent call last):
+  File "[PROJEKTMAPPE]/aflevering/scripts/lab.py", line 136, in main
+    exec(compile(code,n+'/test.py','exec'),{'L':lab,'check':check,'re':re,'time':time,'sp':sp,'Path':Path,'json':json,'shlex':shlex,'secrets':secrets,'os':os,'ROOT':ROOT,'A':A})
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "11/test.py", line 15, in <module>
+  File "[PROJEKTMAPPE]/aflevering/scripts/lab.py", line 108, in sql
+    if expect is not None:check(re.search(expect,out,re.M|re.S),f'Mangler resultat / {expect}')
+                          ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[PROJEKTMAPPE]/aflevering/scripts/lab.py", line 13, in check
+    raise AssertionError(message)
+AssertionError: Mangler resultat / 100\|t\nt
+
+
+2026-11-20T10:07:14+01:00  $ docker compose -p dbsec11-sdhx62pa -f [PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/compose.json ps -a -q
+650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77
+exit 0
+
+2026-11-20T10:07:14+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 650957a3332e0ec53f701a8a51d8b7eb74bf67108189c76607d9a511c8d46e77
+dbsec11-sdhx62pa
+exit 0
+
+2026-11-20T10:07:14+01:00  $ docker compose -p dbsec11-sdhx62pa -f [PROJEKTMAPPE]/kontrol/dbsec11-sdhx62pa/compose.json down -v --timeout 8
+ Container dbsec11-sdhx62pa-postgres-1  Stopping
+ Container dbsec11-sdhx62pa-postgres-1  Stopped
+ Container dbsec11-sdhx62pa-postgres-1  Removing
+ Container dbsec11-sdhx62pa-postgres-1  Removed
+ Volume dbsec11-sdhx62pa_data  Removing
+ Network dbsec11-sdhx62pa_default  Removing
+ Volume dbsec11-sdhx62pa_data  Removed
+ Network dbsec11-sdhx62pa_default  Removed
+exit 0
+2026-11-20T10:07:15+01:00  PARTIAL

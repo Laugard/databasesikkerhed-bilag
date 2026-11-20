@@ -1,0 +1,587 @@
+
+2026-11-20T10:04:14+01:00  $ docker compose -p dbsec04-cz_8r9ol -f [PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/compose.json config --format json
+{
+  "name": "dbsec04-cz_8r9ol",
+  "networks": {
+    "default": {
+      "name": "dbsec04-cz_8r9ol_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec04-cz_8r9ol_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec04-cz_8r9ol_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:04:14+01:00  $ docker compose -p dbsec04-cz_8r9ol -f [PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/compose.json up -d
+ Network dbsec04-cz_8r9ol_default  Creating
+ Network dbsec04-cz_8r9ol_default  Created
+ Volume "dbsec04-cz_8r9ol_data"  Creating
+ Volume "dbsec04-cz_8r9ol_data"  Created
+ Container dbsec04-cz_8r9ol-postgres-1  Creating
+ Container dbsec04-cz_8r9ol-postgres-1  Created
+ Container dbsec04-cz_8r9ol-postgres-1  Starting
+ Container dbsec04-cz_8r9ol-postgres-1  Started
+exit 0
+
+2026-11-20T10:04:14+01:00  $ docker compose -p dbsec04-cz_8r9ol -f [PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/compose.json ps -q postgres
+2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83
+exit 0
+
+2026-11-20T10:04:19+01:00  $ docker exec 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT count(*) FROM ordrer;
+
+2026-11-20T10:04:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+1000000
+exit 0
+SQL
+
+\timing on
+SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+
+2026-11-20T10:04:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Timing is on.
+25124|5000|afsluttet|6052.61|2021-07-19 00:00:00|2022-07-26 00:00:00|Kort
+36831|5000|afsluttet|2631.71|2022-12-29 00:00:00|2021-02-22 00:00:00|MobilePay
+61332|5000|afsluttet|3630.51|2020-02-26 00:00:00|2021-05-25 00:00:00|MobilePay
+120593|5000|afsluttet|6671.08|2021-12-08 00:00:00|2022-12-07 00:00:00|MobilePay
+148553|5000|afsluttet|6922.64|2022-01-15 00:00:00|2021-05-01 00:00:00|Overførsel
+168211|5000|afsluttet|4916.74|2022-09-11 00:00:00|2020-08-20 00:00:00|Kontant
+181415|5000|afsluttet|2711.55|2020-11-10 00:00:00|2020-05-18 00:00:00|Kontant
+218302|5000|afsluttet|8756.20|2022-12-25 00:00:00|2022-02-20 00:00:00|Overførsel
+250170|5000|afsluttet|25.64|2020-05-16 00:00:00|2021-12-07 00:00:00|Kort
+306781|5000|afsluttet|7254.13|2020-03-12 00:00:00|2020-01-15 00:00:00|Overførsel
+311118|5000|afsluttet|3234.54|2021-09-24 00:00:00|2021-02-01 00:00:00|Kort
+333426|5000|afsluttet|7866.58|2022-10-05 00:00:00|2020-05-04 00:00:00|MobilePay
+394032|5000|afsluttet|8456.41|2022-04-29 00:00:00|2022-04-06 00:00:00|Kort
+395893|5000|afsluttet|8442.21|2021-02-18 00:00:00|2022-01-19 00:00:00|MobilePay
+420215|5000|afsluttet|5178.58|2021-08-15 00:00:00|2022-08-10 00:00:00|MobilePay
+434954|5000|afsluttet|3570.19|2021-09-20 00:00:00|2022-01-13 00:00:00|Overførsel
+438368|5000|afsluttet|8038.92|2021-06-19 00:00:00|2022-07-14 00:00:00|Overførsel
+447642|5000|afsluttet|9916.16|2022-01-19 00:00:00|2021-10-28 00:00:00|Kort
+462398|5000|afsluttet|6684.70|2020-10-29 00:00:00|2022-05-10 00:00:00|Overførsel
+477875|5000|afsluttet|8266.79|2022-10-02 00:00:00|2020-06-25 00:00:00|Kontant
+516071|5000|afsluttet|7930.20|2020-11-14 00:00:00|2022-03-21 00:00:00|MobilePay
+528725|5000|afsluttet|2846.42|2020-05-17 00:00:00|2020-03-08 00:00:00|Kort
+545270|5000|afsluttet|2008.64|2020-10-16 00:00:00|2020-07-05 00:00:00|MobilePay
+675996|5000|afsluttet|80.46|2022-04-23 00:00:00|2020-07-31 00:00:00|Kontant
+764661|5000|afsluttet|9173.56|2022-02-16 00:00:00|2020-12-20 00:00:00|Overførsel
+769720|5000|afsluttet|6764.08|2021-04-20 00:00:00|2020-03-18 00:00:00|Kort
+801233|5000|afsluttet|1283.82|2022-08-14 00:00:00|2022-08-20 00:00:00|Kontant
+814745|5000|afsluttet|3434.30|2022-09-05 00:00:00|2021-05-17 00:00:00|MobilePay
+861217|5000|afsluttet|9031.63|2021-03-16 00:00:00|2021-06-08 00:00:00|Kort
+901592|5000|afsluttet|6973.41|2020-02-02 00:00:00|2022-06-24 00:00:00|Overførsel
+922700|5000|afsluttet|6948.60|2021-09-09 00:00:00|2022-03-25 00:00:00|MobilePay
+928034|5000|afsluttet|1738.30|2020-01-29 00:00:00|2020-07-10 00:00:00|Overførsel
+969748|5000|afsluttet|1768.21|2022-10-25 00:00:00|2020-05-26 00:00:00|MobilePay
+976788|5000|afsluttet|2789.38|2020-08-17 00:00:00|2020-12-19 00:00:00|Kontant
+86703|5000|afsluttet|1076.62|2022-08-27 00:00:00|2021-05-21 00:00:00|MobilePay
+111732|5000|afsluttet|139.23|2022-08-21 00:00:00|2020-04-11 00:00:00|Kontant
+144451|5000|afsluttet|5512.59|2020-12-22 00:00:00|2022-01-14 00:00:00|Kort
+205588|5000|afsluttet|8157.24|2020-04-13 00:00:00|2020-11-16 00:00:00|Kontant
+265372|5000|afsluttet|5372.30|2022-11-24 00:00:00|2022-01-10 00:00:00|MobilePay
+275060|5000|afsluttet|807.35|2021-05-27 00:00:00|2022-12-05 00:00:00|Overførsel
+276600|5000|afsluttet|5271.55|2022-04-02 00:00:00|2020-09-29 00:00:00|Kontant
+349467|5000|afsluttet|2167.85|2020-09-03 00:00:00|2021-06-18 00:00:00|Kort
+360353|5000|afsluttet|8678.04|2021-11-20 00:00:00|2022-09-08 00:00:00|Kontant
+366086|5000|afsluttet|2006.47|2020-08-11 00:00:00|2020-12-28 00:00:00|Kort
+368565|5000|afsluttet|3365.15|2022-02-13 00:00:00|2021-02-21 00:00:00|Kort
+368622|5000|afsluttet|5736.70|2020-07-21 00:00:00|2021-07-13 00:00:00|Overførsel
+374998|5000|afsluttet|2450.35|2020-09-15 00:00:00|2020-04-26 00:00:00|MobilePay
+378213|5000|afsluttet|7799.95|2022-02-12 00:00:00|2021-02-16 00:00:00|MobilePay
+397182|5000|afsluttet|9644.10|2022-04-02 00:00:00|2022-12-08 00:00:00|MobilePay
+415170|5000|afsluttet|4824.92|2020-09-29 00:00:00|2023-01-02 00:00:00|MobilePay
+458858|5000|afsluttet|5720.74|2022-12-24 00:00:00|2022-06-17 00:00:00|Kort
+471327|5000|afsluttet|7880.44|2021-07-12 00:00:00|2022-08-25 00:00:00|MobilePay
+473067|5000|afsluttet|1853.08|2021-04-05 00:00:00|2021-05-10 00:00:00|Overførsel
+503601|5000|afsluttet|6417.17|2020-02-02 00:00:00|2020-05-17 00:00:00|Kort
+520032|5000|afsluttet|3171.27|2022-06-09 00:00:00|2022-06-05 00:00:00|Kontant
+600807|5000|afsluttet|553.76|2020-11-29 00:00:00|2021-05-21 00:00:00|Overførsel
+617259|5000|afsluttet|9578.06|2021-08-20 00:00:00|2022-02-17 00:00:00|Kort
+688489|5000|afsluttet|3018.02|2021-03-29 00:00:00|2021-01-11 00:00:00|Kontant
+692757|5000|afsluttet|1554.78|2022-11-21 00:00:00|2022-12-16 00:00:00|MobilePay
+722360|5000|afsluttet|9838.99|2020-12-03 00:00:00|2020-03-03 00:00:00|MobilePay
+783081|5000|afsluttet|8740.57|2021-05-04 00:00:00|2020-04-11 00:00:00|Overførsel
+834139|5000|afsluttet|8115.56|2021-06-16 00:00:00|2021-01-01 00:00:00|Overførsel
+902914|5000|afsluttet|8991.77|2020-11-04 00:00:00|2021-04-25 00:00:00|Kontant
+993961|5000|afsluttet|2449.58|2021-03-23 00:00:00|2021-12-18 00:00:00|MobilePay
+49386|5000|afsluttet|1176.45|2020-02-18 00:00:00|2021-05-10 00:00:00|MobilePay
+115294|5000|afsluttet|5173.94|2020-05-07 00:00:00|2020-10-22 00:00:00|MobilePay
+119885|5000|afsluttet|383.47|2021-03-06 00:00:00|2022-08-12 00:00:00|MobilePay
+195888|5000|afsluttet|2710.35|2020-05-22 00:00:00|2020-04-05 00:00:00|MobilePay
+267172|5000|afsluttet|5712.66|2022-09-10 00:00:00|2020-11-27 00:00:00|Kort
+277986|5000|afsluttet|7514.04|2022-06-12 00:00:00|2021-09-14 00:00:00|MobilePay
+335101|5000|afsluttet|3989.23|2022-07-07 00:00:00|2020-07-01 00:00:00|Kort
+419199|5000|afsluttet|123.22|2021-08-04 00:00:00|2022-06-04 00:00:00|Kontant
+463847|5000|afsluttet|9676.73|2021-12-04 00:00:00|2022-02-15 00:00:00|Overførsel
+512717|5000|afsluttet|3354.55|2020-05-23 00:00:00|2020-05-27 00:00:00|Kort
+538706|5000|afsluttet|2077.94|2021-12-10 00:00:00|2022-04-10 00:00:00|MobilePay
+556373|5000|afsluttet|2686.26|2020-10-19 00:00:00|2021-06-21 00:00:00|MobilePay
+579985|5000|afsluttet|7562.71|2020-07-22 00:00:00|2020-10-21 00:00:00|Overførsel
+630097|5000|afsluttet|6592.78|2021-08-21 00:00:00|2022-05-21 00:00:00|Kort
+638750|5000|afsluttet|3706.68|2020-11-20 00:00:00|2020-10-10 00:00:00|Overførsel
+657526|5000|afsluttet|444.08|2022-02-28 00:00:00|2020-09-20 00:00:00|Overførsel
+669950|5000|afsluttet|5906.28|2022-11-06 00:00:00|2022-10-03 00:00:00|Kontant
+689321|5000|afsluttet|6857.08|2021-07-21 00:00:00|2022-02-15 00:00:00|Kontant
+716126|5000|afsluttet|3246.34|2020-02-07 00:00:00|2020-10-12 00:00:00|MobilePay
+804025|5000|afsluttet|7366.90|2022-01-11 00:00:00|2020-09-14 00:00:00|Kontant
+886850|5000|afsluttet|740.47|2021-12-06 00:00:00|2021-10-09 00:00:00|Kort
+909210|5000|afsluttet|2320.10|2020-04-08 00:00:00|2021-03-02 00:00:00|Kontant
+924298|5000|afsluttet|2428.15|2020-12-01 00:00:00|2022-10-25 00:00:00|MobilePay
+942980|5000|afsluttet|3308.72|2022-03-02 00:00:00|2020-12-17 00:00:00|MobilePay
+970183|5000|afsluttet|7745.68|2020-07-16 00:00:00|2022-09-14 00:00:00|Kontant
+981628|5000|afsluttet|7124.44|2022-01-09 00:00:00|2022-10-18 00:00:00|Kontant
+Time: 16.634 ms
+Gather  (cost=1000.00..18019.00 rows=70 width=48) (actual time=1.706..15.447 rows=90.00 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=564 read=10198
+  ->  Parallel Seq Scan on ordrer  (cost=0.00..17012.00 rows=29 width=48) (actual time=1.262..12.703 rows=30.00 loops=3)
+        Filter: ((kunde_id = 5000) AND ((status)::text = 'afsluttet'::text))
+        Rows Removed by Filter: 333303
+        Buffers: shared hit=564 read=10198
+Planning Time: 0.066 ms
+Execution Time: 15.467 ms
+Time: 15.756 ms
+exit 0
+SQL
+CREATE INDEX idx_ordrer_kunde ON ordrer(kunde_id);
+\timing on
+SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+
+2026-11-20T10:04:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+CREATE INDEX
+Timing is on.
+25124|5000|afsluttet|6052.61|2021-07-19 00:00:00|2022-07-26 00:00:00|Kort
+36831|5000|afsluttet|2631.71|2022-12-29 00:00:00|2021-02-22 00:00:00|MobilePay
+49386|5000|afsluttet|1176.45|2020-02-18 00:00:00|2021-05-10 00:00:00|MobilePay
+61332|5000|afsluttet|3630.51|2020-02-26 00:00:00|2021-05-25 00:00:00|MobilePay
+86703|5000|afsluttet|1076.62|2022-08-27 00:00:00|2021-05-21 00:00:00|MobilePay
+111732|5000|afsluttet|139.23|2022-08-21 00:00:00|2020-04-11 00:00:00|Kontant
+115294|5000|afsluttet|5173.94|2020-05-07 00:00:00|2020-10-22 00:00:00|MobilePay
+119885|5000|afsluttet|383.47|2021-03-06 00:00:00|2022-08-12 00:00:00|MobilePay
+120593|5000|afsluttet|6671.08|2021-12-08 00:00:00|2022-12-07 00:00:00|MobilePay
+144451|5000|afsluttet|5512.59|2020-12-22 00:00:00|2022-01-14 00:00:00|Kort
+148553|5000|afsluttet|6922.64|2022-01-15 00:00:00|2021-05-01 00:00:00|Overførsel
+168211|5000|afsluttet|4916.74|2022-09-11 00:00:00|2020-08-20 00:00:00|Kontant
+181415|5000|afsluttet|2711.55|2020-11-10 00:00:00|2020-05-18 00:00:00|Kontant
+195888|5000|afsluttet|2710.35|2020-05-22 00:00:00|2020-04-05 00:00:00|MobilePay
+205588|5000|afsluttet|8157.24|2020-04-13 00:00:00|2020-11-16 00:00:00|Kontant
+218302|5000|afsluttet|8756.20|2022-12-25 00:00:00|2022-02-20 00:00:00|Overførsel
+250170|5000|afsluttet|25.64|2020-05-16 00:00:00|2021-12-07 00:00:00|Kort
+265372|5000|afsluttet|5372.30|2022-11-24 00:00:00|2022-01-10 00:00:00|MobilePay
+267172|5000|afsluttet|5712.66|2022-09-10 00:00:00|2020-11-27 00:00:00|Kort
+275060|5000|afsluttet|807.35|2021-05-27 00:00:00|2022-12-05 00:00:00|Overførsel
+276600|5000|afsluttet|5271.55|2022-04-02 00:00:00|2020-09-29 00:00:00|Kontant
+277986|5000|afsluttet|7514.04|2022-06-12 00:00:00|2021-09-14 00:00:00|MobilePay
+306781|5000|afsluttet|7254.13|2020-03-12 00:00:00|2020-01-15 00:00:00|Overførsel
+311118|5000|afsluttet|3234.54|2021-09-24 00:00:00|2021-02-01 00:00:00|Kort
+333426|5000|afsluttet|7866.58|2022-10-05 00:00:00|2020-05-04 00:00:00|MobilePay
+335101|5000|afsluttet|3989.23|2022-07-07 00:00:00|2020-07-01 00:00:00|Kort
+349467|5000|afsluttet|2167.85|2020-09-03 00:00:00|2021-06-18 00:00:00|Kort
+360353|5000|afsluttet|8678.04|2021-11-20 00:00:00|2022-09-08 00:00:00|Kontant
+366086|5000|afsluttet|2006.47|2020-08-11 00:00:00|2020-12-28 00:00:00|Kort
+368565|5000|afsluttet|3365.15|2022-02-13 00:00:00|2021-02-21 00:00:00|Kort
+368622|5000|afsluttet|5736.70|2020-07-21 00:00:00|2021-07-13 00:00:00|Overførsel
+374998|5000|afsluttet|2450.35|2020-09-15 00:00:00|2020-04-26 00:00:00|MobilePay
+378213|5000|afsluttet|7799.95|2022-02-12 00:00:00|2021-02-16 00:00:00|MobilePay
+394032|5000|afsluttet|8456.41|2022-04-29 00:00:00|2022-04-06 00:00:00|Kort
+395893|5000|afsluttet|8442.21|2021-02-18 00:00:00|2022-01-19 00:00:00|MobilePay
+397182|5000|afsluttet|9644.10|2022-04-02 00:00:00|2022-12-08 00:00:00|MobilePay
+415170|5000|afsluttet|4824.92|2020-09-29 00:00:00|2023-01-02 00:00:00|MobilePay
+419199|5000|afsluttet|123.22|2021-08-04 00:00:00|2022-06-04 00:00:00|Kontant
+420215|5000|afsluttet|5178.58|2021-08-15 00:00:00|2022-08-10 00:00:00|MobilePay
+434954|5000|afsluttet|3570.19|2021-09-20 00:00:00|2022-01-13 00:00:00|Overførsel
+438368|5000|afsluttet|8038.92|2021-06-19 00:00:00|2022-07-14 00:00:00|Overførsel
+447642|5000|afsluttet|9916.16|2022-01-19 00:00:00|2021-10-28 00:00:00|Kort
+458858|5000|afsluttet|5720.74|2022-12-24 00:00:00|2022-06-17 00:00:00|Kort
+462398|5000|afsluttet|6684.70|2020-10-29 00:00:00|2022-05-10 00:00:00|Overførsel
+463847|5000|afsluttet|9676.73|2021-12-04 00:00:00|2022-02-15 00:00:00|Overførsel
+471327|5000|afsluttet|7880.44|2021-07-12 00:00:00|2022-08-25 00:00:00|MobilePay
+473067|5000|afsluttet|1853.08|2021-04-05 00:00:00|2021-05-10 00:00:00|Overførsel
+477875|5000|afsluttet|8266.79|2022-10-02 00:00:00|2020-06-25 00:00:00|Kontant
+503601|5000|afsluttet|6417.17|2020-02-02 00:00:00|2020-05-17 00:00:00|Kort
+512717|5000|afsluttet|3354.55|2020-05-23 00:00:00|2020-05-27 00:00:00|Kort
+516071|5000|afsluttet|7930.20|2020-11-14 00:00:00|2022-03-21 00:00:00|MobilePay
+520032|5000|afsluttet|3171.27|2022-06-09 00:00:00|2022-06-05 00:00:00|Kontant
+528725|5000|afsluttet|2846.42|2020-05-17 00:00:00|2020-03-08 00:00:00|Kort
+538706|5000|afsluttet|2077.94|2021-12-10 00:00:00|2022-04-10 00:00:00|MobilePay
+545270|5000|afsluttet|2008.64|2020-10-16 00:00:00|2020-07-05 00:00:00|MobilePay
+556373|5000|afsluttet|2686.26|2020-10-19 00:00:00|2021-06-21 00:00:00|MobilePay
+579985|5000|afsluttet|7562.71|2020-07-22 00:00:00|2020-10-21 00:00:00|Overførsel
+600807|5000|afsluttet|553.76|2020-11-29 00:00:00|2021-05-21 00:00:00|Overførsel
+617259|5000|afsluttet|9578.06|2021-08-20 00:00:00|2022-02-17 00:00:00|Kort
+630097|5000|afsluttet|6592.78|2021-08-21 00:00:00|2022-05-21 00:00:00|Kort
+638750|5000|afsluttet|3706.68|2020-11-20 00:00:00|2020-10-10 00:00:00|Overførsel
+657526|5000|afsluttet|444.08|2022-02-28 00:00:00|2020-09-20 00:00:00|Overførsel
+669950|5000|afsluttet|5906.28|2022-11-06 00:00:00|2022-10-03 00:00:00|Kontant
+675996|5000|afsluttet|80.46|2022-04-23 00:00:00|2020-07-31 00:00:00|Kontant
+688489|5000|afsluttet|3018.02|2021-03-29 00:00:00|2021-01-11 00:00:00|Kontant
+689321|5000|afsluttet|6857.08|2021-07-21 00:00:00|2022-02-15 00:00:00|Kontant
+692757|5000|afsluttet|1554.78|2022-11-21 00:00:00|2022-12-16 00:00:00|MobilePay
+716126|5000|afsluttet|3246.34|2020-02-07 00:00:00|2020-10-12 00:00:00|MobilePay
+722360|5000|afsluttet|9838.99|2020-12-03 00:00:00|2020-03-03 00:00:00|MobilePay
+764661|5000|afsluttet|9173.56|2022-02-16 00:00:00|2020-12-20 00:00:00|Overførsel
+769720|5000|afsluttet|6764.08|2021-04-20 00:00:00|2020-03-18 00:00:00|Kort
+783081|5000|afsluttet|8740.57|2021-05-04 00:00:00|2020-04-11 00:00:00|Overførsel
+801233|5000|afsluttet|1283.82|2022-08-14 00:00:00|2022-08-20 00:00:00|Kontant
+804025|5000|afsluttet|7366.90|2022-01-11 00:00:00|2020-09-14 00:00:00|Kontant
+814745|5000|afsluttet|3434.30|2022-09-05 00:00:00|2021-05-17 00:00:00|MobilePay
+834139|5000|afsluttet|8115.56|2021-06-16 00:00:00|2021-01-01 00:00:00|Overførsel
+861217|5000|afsluttet|9031.63|2021-03-16 00:00:00|2021-06-08 00:00:00|Kort
+886850|5000|afsluttet|740.47|2021-12-06 00:00:00|2021-10-09 00:00:00|Kort
+901592|5000|afsluttet|6973.41|2020-02-02 00:00:00|2022-06-24 00:00:00|Overførsel
+902914|5000|afsluttet|8991.77|2020-11-04 00:00:00|2021-04-25 00:00:00|Kontant
+909210|5000|afsluttet|2320.10|2020-04-08 00:00:00|2021-03-02 00:00:00|Kontant
+922700|5000|afsluttet|6948.60|2021-09-09 00:00:00|2022-03-25 00:00:00|MobilePay
+924298|5000|afsluttet|2428.15|2020-12-01 00:00:00|2022-10-25 00:00:00|MobilePay
+928034|5000|afsluttet|1738.30|2020-01-29 00:00:00|2020-07-10 00:00:00|Overførsel
+942980|5000|afsluttet|3308.72|2022-03-02 00:00:00|2020-12-17 00:00:00|MobilePay
+969748|5000|afsluttet|1768.21|2022-10-25 00:00:00|2020-05-26 00:00:00|MobilePay
+970183|5000|afsluttet|7745.68|2020-07-16 00:00:00|2022-09-14 00:00:00|Kontant
+976788|5000|afsluttet|2789.38|2020-08-17 00:00:00|2020-12-19 00:00:00|Kontant
+981628|5000|afsluttet|7124.44|2022-01-09 00:00:00|2022-10-18 00:00:00|Kontant
+993961|5000|afsluttet|2449.58|2021-03-23 00:00:00|2021-12-18 00:00:00|MobilePay
+Time: 1.272 ms
+Bitmap Heap Scan on ordrer  (cost=5.19..377.77 rows=70 width=48) (actual time=0.018..0.070 rows=90.00 loops=1)
+  Recheck Cond: (kunde_id = 5000)
+  Filter: ((status)::text = 'afsluttet'::text)
+  Rows Removed by Filter: 42
+  Heap Blocks: exact=132
+  Buffers: shared hit=135
+  ->  Bitmap Index Scan on idx_ordrer_kunde  (cost=0.00..5.17 rows=100 width=0) (actual time=0.006..0.006 rows=132.00 loops=1)
+        Index Cond: (kunde_id = 5000)
+        Index Searches: 1
+        Buffers: shared hit=3
+Planning Time: 0.024 ms
+Execution Time: 0.079 ms
+Time: 0.244 ms
+exit 0
+SQL
+CREATE INDEX idx_ordrer_kunde_status ON ordrer(kunde_id,status);
+\timing on
+SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+
+2026-11-20T10:04:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+CREATE INDEX
+Timing is on.
+25124|5000|afsluttet|6052.61|2021-07-19 00:00:00|2022-07-26 00:00:00|Kort
+36831|5000|afsluttet|2631.71|2022-12-29 00:00:00|2021-02-22 00:00:00|MobilePay
+49386|5000|afsluttet|1176.45|2020-02-18 00:00:00|2021-05-10 00:00:00|MobilePay
+61332|5000|afsluttet|3630.51|2020-02-26 00:00:00|2021-05-25 00:00:00|MobilePay
+86703|5000|afsluttet|1076.62|2022-08-27 00:00:00|2021-05-21 00:00:00|MobilePay
+111732|5000|afsluttet|139.23|2022-08-21 00:00:00|2020-04-11 00:00:00|Kontant
+115294|5000|afsluttet|5173.94|2020-05-07 00:00:00|2020-10-22 00:00:00|MobilePay
+119885|5000|afsluttet|383.47|2021-03-06 00:00:00|2022-08-12 00:00:00|MobilePay
+120593|5000|afsluttet|6671.08|2021-12-08 00:00:00|2022-12-07 00:00:00|MobilePay
+144451|5000|afsluttet|5512.59|2020-12-22 00:00:00|2022-01-14 00:00:00|Kort
+148553|5000|afsluttet|6922.64|2022-01-15 00:00:00|2021-05-01 00:00:00|Overførsel
+168211|5000|afsluttet|4916.74|2022-09-11 00:00:00|2020-08-20 00:00:00|Kontant
+181415|5000|afsluttet|2711.55|2020-11-10 00:00:00|2020-05-18 00:00:00|Kontant
+195888|5000|afsluttet|2710.35|2020-05-22 00:00:00|2020-04-05 00:00:00|MobilePay
+205588|5000|afsluttet|8157.24|2020-04-13 00:00:00|2020-11-16 00:00:00|Kontant
+218302|5000|afsluttet|8756.20|2022-12-25 00:00:00|2022-02-20 00:00:00|Overførsel
+250170|5000|afsluttet|25.64|2020-05-16 00:00:00|2021-12-07 00:00:00|Kort
+265372|5000|afsluttet|5372.30|2022-11-24 00:00:00|2022-01-10 00:00:00|MobilePay
+267172|5000|afsluttet|5712.66|2022-09-10 00:00:00|2020-11-27 00:00:00|Kort
+275060|5000|afsluttet|807.35|2021-05-27 00:00:00|2022-12-05 00:00:00|Overførsel
+276600|5000|afsluttet|5271.55|2022-04-02 00:00:00|2020-09-29 00:00:00|Kontant
+277986|5000|afsluttet|7514.04|2022-06-12 00:00:00|2021-09-14 00:00:00|MobilePay
+306781|5000|afsluttet|7254.13|2020-03-12 00:00:00|2020-01-15 00:00:00|Overførsel
+311118|5000|afsluttet|3234.54|2021-09-24 00:00:00|2021-02-01 00:00:00|Kort
+333426|5000|afsluttet|7866.58|2022-10-05 00:00:00|2020-05-04 00:00:00|MobilePay
+335101|5000|afsluttet|3989.23|2022-07-07 00:00:00|2020-07-01 00:00:00|Kort
+349467|5000|afsluttet|2167.85|2020-09-03 00:00:00|2021-06-18 00:00:00|Kort
+360353|5000|afsluttet|8678.04|2021-11-20 00:00:00|2022-09-08 00:00:00|Kontant
+366086|5000|afsluttet|2006.47|2020-08-11 00:00:00|2020-12-28 00:00:00|Kort
+368565|5000|afsluttet|3365.15|2022-02-13 00:00:00|2021-02-21 00:00:00|Kort
+368622|5000|afsluttet|5736.70|2020-07-21 00:00:00|2021-07-13 00:00:00|Overførsel
+374998|5000|afsluttet|2450.35|2020-09-15 00:00:00|2020-04-26 00:00:00|MobilePay
+378213|5000|afsluttet|7799.95|2022-02-12 00:00:00|2021-02-16 00:00:00|MobilePay
+394032|5000|afsluttet|8456.41|2022-04-29 00:00:00|2022-04-06 00:00:00|Kort
+395893|5000|afsluttet|8442.21|2021-02-18 00:00:00|2022-01-19 00:00:00|MobilePay
+397182|5000|afsluttet|9644.10|2022-04-02 00:00:00|2022-12-08 00:00:00|MobilePay
+415170|5000|afsluttet|4824.92|2020-09-29 00:00:00|2023-01-02 00:00:00|MobilePay
+419199|5000|afsluttet|123.22|2021-08-04 00:00:00|2022-06-04 00:00:00|Kontant
+420215|5000|afsluttet|5178.58|2021-08-15 00:00:00|2022-08-10 00:00:00|MobilePay
+434954|5000|afsluttet|3570.19|2021-09-20 00:00:00|2022-01-13 00:00:00|Overførsel
+438368|5000|afsluttet|8038.92|2021-06-19 00:00:00|2022-07-14 00:00:00|Overførsel
+447642|5000|afsluttet|9916.16|2022-01-19 00:00:00|2021-10-28 00:00:00|Kort
+458858|5000|afsluttet|5720.74|2022-12-24 00:00:00|2022-06-17 00:00:00|Kort
+462398|5000|afsluttet|6684.70|2020-10-29 00:00:00|2022-05-10 00:00:00|Overførsel
+463847|5000|afsluttet|9676.73|2021-12-04 00:00:00|2022-02-15 00:00:00|Overførsel
+471327|5000|afsluttet|7880.44|2021-07-12 00:00:00|2022-08-25 00:00:00|MobilePay
+473067|5000|afsluttet|1853.08|2021-04-05 00:00:00|2021-05-10 00:00:00|Overførsel
+477875|5000|afsluttet|8266.79|2022-10-02 00:00:00|2020-06-25 00:00:00|Kontant
+503601|5000|afsluttet|6417.17|2020-02-02 00:00:00|2020-05-17 00:00:00|Kort
+512717|5000|afsluttet|3354.55|2020-05-23 00:00:00|2020-05-27 00:00:00|Kort
+516071|5000|afsluttet|7930.20|2020-11-14 00:00:00|2022-03-21 00:00:00|MobilePay
+520032|5000|afsluttet|3171.27|2022-06-09 00:00:00|2022-06-05 00:00:00|Kontant
+528725|5000|afsluttet|2846.42|2020-05-17 00:00:00|2020-03-08 00:00:00|Kort
+538706|5000|afsluttet|2077.94|2021-12-10 00:00:00|2022-04-10 00:00:00|MobilePay
+545270|5000|afsluttet|2008.64|2020-10-16 00:00:00|2020-07-05 00:00:00|MobilePay
+556373|5000|afsluttet|2686.26|2020-10-19 00:00:00|2021-06-21 00:00:00|MobilePay
+579985|5000|afsluttet|7562.71|2020-07-22 00:00:00|2020-10-21 00:00:00|Overførsel
+600807|5000|afsluttet|553.76|2020-11-29 00:00:00|2021-05-21 00:00:00|Overførsel
+617259|5000|afsluttet|9578.06|2021-08-20 00:00:00|2022-02-17 00:00:00|Kort
+630097|5000|afsluttet|6592.78|2021-08-21 00:00:00|2022-05-21 00:00:00|Kort
+638750|5000|afsluttet|3706.68|2020-11-20 00:00:00|2020-10-10 00:00:00|Overførsel
+657526|5000|afsluttet|444.08|2022-02-28 00:00:00|2020-09-20 00:00:00|Overførsel
+669950|5000|afsluttet|5906.28|2022-11-06 00:00:00|2022-10-03 00:00:00|Kontant
+675996|5000|afsluttet|80.46|2022-04-23 00:00:00|2020-07-31 00:00:00|Kontant
+688489|5000|afsluttet|3018.02|2021-03-29 00:00:00|2021-01-11 00:00:00|Kontant
+689321|5000|afsluttet|6857.08|2021-07-21 00:00:00|2022-02-15 00:00:00|Kontant
+692757|5000|afsluttet|1554.78|2022-11-21 00:00:00|2022-12-16 00:00:00|MobilePay
+716126|5000|afsluttet|3246.34|2020-02-07 00:00:00|2020-10-12 00:00:00|MobilePay
+722360|5000|afsluttet|9838.99|2020-12-03 00:00:00|2020-03-03 00:00:00|MobilePay
+764661|5000|afsluttet|9173.56|2022-02-16 00:00:00|2020-12-20 00:00:00|Overførsel
+769720|5000|afsluttet|6764.08|2021-04-20 00:00:00|2020-03-18 00:00:00|Kort
+783081|5000|afsluttet|8740.57|2021-05-04 00:00:00|2020-04-11 00:00:00|Overførsel
+801233|5000|afsluttet|1283.82|2022-08-14 00:00:00|2022-08-20 00:00:00|Kontant
+804025|5000|afsluttet|7366.90|2022-01-11 00:00:00|2020-09-14 00:00:00|Kontant
+814745|5000|afsluttet|3434.30|2022-09-05 00:00:00|2021-05-17 00:00:00|MobilePay
+834139|5000|afsluttet|8115.56|2021-06-16 00:00:00|2021-01-01 00:00:00|Overførsel
+861217|5000|afsluttet|9031.63|2021-03-16 00:00:00|2021-06-08 00:00:00|Kort
+886850|5000|afsluttet|740.47|2021-12-06 00:00:00|2021-10-09 00:00:00|Kort
+901592|5000|afsluttet|6973.41|2020-02-02 00:00:00|2022-06-24 00:00:00|Overførsel
+902914|5000|afsluttet|8991.77|2020-11-04 00:00:00|2021-04-25 00:00:00|Kontant
+909210|5000|afsluttet|2320.10|2020-04-08 00:00:00|2021-03-02 00:00:00|Kontant
+922700|5000|afsluttet|6948.60|2021-09-09 00:00:00|2022-03-25 00:00:00|MobilePay
+924298|5000|afsluttet|2428.15|2020-12-01 00:00:00|2022-10-25 00:00:00|MobilePay
+928034|5000|afsluttet|1738.30|2020-01-29 00:00:00|2020-07-10 00:00:00|Overførsel
+942980|5000|afsluttet|3308.72|2022-03-02 00:00:00|2020-12-17 00:00:00|MobilePay
+969748|5000|afsluttet|1768.21|2022-10-25 00:00:00|2020-05-26 00:00:00|MobilePay
+970183|5000|afsluttet|7745.68|2020-07-16 00:00:00|2022-09-14 00:00:00|Kontant
+976788|5000|afsluttet|2789.38|2020-08-17 00:00:00|2020-12-19 00:00:00|Kontant
+981628|5000|afsluttet|7124.44|2022-01-09 00:00:00|2022-10-18 00:00:00|Kontant
+993961|5000|afsluttet|2449.58|2021-03-23 00:00:00|2021-12-18 00:00:00|MobilePay
+Time: 0.682 ms
+Bitmap Heap Scan on ordrer  (cost=5.14..269.26 rows=70 width=48) (actual time=0.013..0.098 rows=90.00 loops=1)
+  Recheck Cond: ((kunde_id = 5000) AND ((status)::text = 'afsluttet'::text))
+  Heap Blocks: exact=90
+  Buffers: shared hit=93
+  ->  Bitmap Index Scan on idx_ordrer_kunde_status  (cost=0.00..5.12 rows=70 width=0) (actual time=0.005..0.005 rows=90.00 loops=1)
+        Index Cond: ((kunde_id = 5000) AND ((status)::text = 'afsluttet'::text))
+        Index Searches: 1
+        Buffers: shared hit=3
+Planning Time: 0.024 ms
+Execution Time: 0.106 ms
+Time: 0.251 ms
+exit 0
+SQL
+DROP INDEX idx_ordrer_kunde,idx_ordrer_kunde_status;
+
+2026-11-20T10:04:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+DROP INDEX
+exit 0
+SQL
+BEGIN;
+EXPLAIN (ANALYZE,BUFFERS,WAL) INSERT INTO ordrer(id,kunde_id,status,beloeb,ordre_dato)
+SELECT 1000000+i,1+(i%10000),'pendende',i/10.0,DATE '2026-01-01' FROM generate_series(1,10000) i;
+EXPLAIN (ANALYZE,BUFFERS,WAL) UPDATE ordrer SET status='afsluttet' WHERE id BETWEEN 1000001 AND 1010000;
+SELECT count(*) FROM ordrer WHERE id>1000000 AND status='afsluttet';
+ROLLBACK;
+
+2026-11-20T10:04:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+Insert on ordrer  (cost=0.00..250.00 rows=0 width=0) (actual time=39.767..39.767 rows=0.00 loops=1)
+  Buffers: shared hit=35632 read=2118 dirtied=2534 written=110
+  WAL: records=30059 fpi=2424 bytes=21922512 buffers full=2175
+  ->  Function Scan on generate_series i  (cost=0.00..250.00 rows=10000 width=156) (actual time=0.373..2.504 rows=10000.00 loops=1)
+Planning Time: 0.056 ms
+Execution Time: 39.835 ms
+Update on ordrer  (cost=0.42..207.97 rows=0 width=0) (actual time=37.113..37.113 rows=0.00 loops=1)
+  Buffers: shared hit=102178 dirtied=136 written=136
+  WAL: records=40272 bytes=3201600 buffers full=247
+  ->  Index Scan using idx_ordrer_id on ordrer  (cost=0.42..207.97 rows=4827 width=64) (actual time=0.009..2.154 rows=10000.00 loops=1)
+        Index Cond: ((id >= 1000001) AND (id <= 1010000))
+        Index Searches: 1
+        Buffers: shared hit=2500
+Planning:
+  Buffers: shared hit=48
+Planning Time: 0.139 ms
+Execution Time: 37.167 ms
+10000
+ROLLBACK
+exit 0
+SQL
+VACUUM (ANALYZE) ordrer;
+CREATE INDEX idx_ordrer_kunde ON ordrer(kunde_id);
+CREATE INDEX idx_ordrer_kunde_status ON ordrer(kunde_id,status);
+
+2026-11-20T10:04:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+VACUUM
+CREATE INDEX
+CREATE INDEX
+exit 0
+SQL
+BEGIN;
+EXPLAIN (ANALYZE,BUFFERS,WAL) INSERT INTO ordrer(id,kunde_id,status,beloeb,ordre_dato)
+SELECT 1000000+i,1+(i%10000),'pendende',i/10.0,DATE '2026-01-01' FROM generate_series(1,10000) i;
+EXPLAIN (ANALYZE,BUFFERS,WAL) UPDATE ordrer SET status='afsluttet' WHERE id BETWEEN 1000001 AND 1010000;
+SELECT count(*) FROM ordrer WHERE id>1000000 AND status='afsluttet';
+ROLLBACK;
+
+2026-11-20T10:04:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+Insert on ordrer  (cost=0.00..250.00 rows=0 width=0) (actual time=42.274..42.276 rows=0.00 loops=1)
+  Buffers: shared hit=96312 read=1802 dirtied=1843 written=54
+  WAL: records=50064 bytes=3579700
+  ->  Function Scan on generate_series i  (cost=0.00..250.00 rows=10000 width=156) (actual time=0.387..2.520 rows=10000.00 loops=1)
+Planning Time: 0.055 ms
+Execution Time: 42.348 ms
+Update on ordrer  (cost=0.42..209.31 rows=0 width=0) (actual time=53.929..53.929 rows=0.00 loops=1)
+  Buffers: shared hit=162893 dirtied=54 written=54
+  WAL: records=60695 bytes=4608820 buffers full=505
+  ->  Index Scan using idx_ordrer_id on ordrer  (cost=0.42..209.31 rows=4844 width=64) (actual time=0.005..2.378 rows=10000.00 loops=1)
+        Index Cond: ((id >= 1000001) AND (id <= 1010000))
+        Index Searches: 1
+        Buffers: shared hit=2501
+Planning:
+  Buffers: shared hit=48
+Planning Time: 0.160 ms
+Execution Time: 53.969 ms
+10000
+ROLLBACK
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM ordrer WHERE kunde_id=100;
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM ordrer WHERE status='afsluttet';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM ordrer WHERE kunde_id=5000 AND status='afsluttet';
+
+2026-11-20T10:04:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Bitmap Heap Scan on ordrer  (cost=5.19..374.12 rows=99 width=48) (actual time=0.136..1.001 rows=105.00 loops=1)
+  Recheck Cond: (kunde_id = 100)
+  Heap Blocks: exact=107
+  Buffers: shared hit=46 read=64
+  ->  Bitmap Index Scan on idx_ordrer_kunde_status  (cost=0.00..5.17 rows=99 width=0) (actual time=0.012..0.012 rows=107.00 loops=1)
+        Index Cond: (kunde_id = 100)
+        Index Searches: 1
+        Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=136
+Planning Time: 0.267 ms
+Execution Time: 1.034 ms
+Seq Scan on ordrer  (cost=0.00..23400.00 rows=701167 width=48) (actual time=0.094..81.742 rows=699938.00 loops=1)
+  Filter: ((status)::text = 'afsluttet'::text)
+  Rows Removed by Filter: 300062
+  Buffers: shared hit=4278 read=6622
+Planning:
+  Buffers: shared hit=8
+Planning Time: 0.054 ms
+Execution Time: 101.971 ms
+Bitmap Heap Scan on ordrer  (cost=5.14..269.36 rows=70 width=48) (actual time=0.038..0.107 rows=90.00 loops=1)
+  Recheck Cond: ((kunde_id = 5000) AND ((status)::text = 'afsluttet'::text))
+  Heap Blocks: exact=91
+  Buffers: shared hit=94
+  ->  Bitmap Index Scan on idx_ordrer_kunde_status  (cost=0.00..5.12 rows=70 width=0) (actual time=0.026..0.026 rows=91.00 loops=1)
+        Index Cond: ((kunde_id = 5000) AND ((status)::text = 'afsluttet'::text))
+        Index Searches: 1
+        Buffers: shared hit=3
+Planning Time: 0.057 ms
+Execution Time: 0.118 ms
+exit 0
+SQL
+SELECT indexrelname,idx_scan,idx_tup_read,idx_tup_fetch FROM pg_stat_user_indexes WHERE relname='ordrer' ORDER BY indexrelname;
+
+2026-11-20T10:04:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+idx_ordrer_id|10|60006|40006
+idx_ordrer_kunde|0|0|0
+idx_ordrer_kunde_status|2|198|0
+ordrer_pkey|0|0|0
+exit 0
+SQL
+VACUUM ordrer;
+SELECT count(*),count(*) FILTER (WHERE id>1000000) FROM ordrer;
+
+2026-11-20T10:04:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+VACUUM
+1000000|0
+exit 0
+
+2026-11-20T10:04:21+01:00  $ docker compose -p dbsec04-cz_8r9ol -f [PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/compose.json ps -a -q
+2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83
+exit 0
+
+2026-11-20T10:04:21+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 2dbb96a6bb71b8a7e9ca1e0f4c024e80abb62e0cb7abb4d2a1f11d88aeaf3f83
+dbsec04-cz_8r9ol
+exit 0
+
+2026-11-20T10:04:21+01:00  $ docker compose -p dbsec04-cz_8r9ol -f [PROJEKTMAPPE]/kontrol/dbsec04-cz_8r9ol/compose.json down -v --timeout 8
+ Container dbsec04-cz_8r9ol-postgres-1  Stopping
+ Container dbsec04-cz_8r9ol-postgres-1  Stopped
+ Container dbsec04-cz_8r9ol-postgres-1  Removing
+ Container dbsec04-cz_8r9ol-postgres-1  Removed
+ Volume dbsec04-cz_8r9ol_data  Removing
+ Network dbsec04-cz_8r9ol_default  Removing
+ Volume dbsec04-cz_8r9ol_data  Removed
+ Network dbsec04-cz_8r9ol_default  Removed
+exit 0
+2026-11-20T10:04:22+01:00  PASS

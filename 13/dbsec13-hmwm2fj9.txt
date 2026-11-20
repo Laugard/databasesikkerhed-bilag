@@ -1,0 +1,1276 @@
+
+2026-11-20T10:08:51+01:00  $ bash [PROJEKTMAPPE]/kilde/oevelser/13-hardening/scripts/setup.sh
+Nyt admin-password i secrets/db_password.txt
+..+.....+...+.+......+...+++++++++++++++++++++++++++++++++++++++*.+++++++++++++++++++++++++++++++++++++++*....+......+.....+............+.........+.+........+......+.++++++
+.....+..+..........+.........+.........+..+......+...+.......+...+.....+.......+...+..+.......+.....+......+.+...+...+........+.+++++++++++++++++++++++++++++++++++++++*............+..........+...+++++++++++++++++++++++++++++++++++++++*..........+...........+.......+.................+.+...+....................+.......+.....+....+.....+......+............+.+..+....+.....+...+......+..........+..+.......+...+........+.......+...+..+...+......+.............+..+.............+....................+.+.....+....+...+...+.....+.........+.+..............+..........+..+...+...+....+...+......+.....+......++++++
+-----
+NB: chown 999 fejlede (f.eks. Windows uden WSL) — kør så: docker compose exec db chown 999:999 /certs/server.key && docker compose restart db
+Self-signed certifikat i certs/ (SAN: localhost, 127.0.0.1, 172.28.0.10)
+Klar: kør 'docker compose up -d'
+Platform: kræver openssl (macOS/Linux indbygget; Windows: WSL eller Git Bash).
+exit 0
+
+2026-11-20T10:08:51+01:00  $ openssl x509 -in certs/server.crt -noout -subject -issuer -dates -ext subjectAltName
+subject=CN=oevelse13-db
+issuer=CN=oevelse13-db
+notBefore=Nov 20 09:08:51 2026 GMT
+notAfter=Nov 20 09:08:51 2027 GMT
+X509v3 Subject Alternative Name: 
+    DNS:localhost, DNS:oevelse13-db, IP Address:127.0.0.1, IP Address:172.28.0.10
+exit 0
+
+2026-11-20T10:08:51+01:00  $ openssl verify -CAfile certs/server.crt certs/server.crt
+certs/server.crt: OK
+exit 0
+
+2026-11-20T10:08:51+01:00  $ git -C [PROJEKTMAPPE]/kilde/oevelser/13-hardening check-ignore certs/server.key secrets/db_password.txt secrets/app_password.txt
+certs/server.key
+secrets/db_password.txt
+secrets/app_password.txt
+exit 0
+
+2026-11-20T10:08:51+01:00  $ docker network inspect ffb266cca51b a05b6ce369ca e99979abae1a 6191bb282239
+exit 0
+
+2026-11-20T10:08:51+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json config --format json
+{
+  "name": "dbsec13-hmwm2fj9",
+  "networks": {
+    "andet": {
+      "name": "dbsec13-hmwm2fj9_andet",
+      "ipam": {
+        "config": [
+          {
+            "subnet": "172.29.0.0/24"
+          }
+        ]
+      },
+      "internal": true
+    },
+    "appnet": {
+      "name": "dbsec13-hmwm2fj9_appnet",
+      "ipam": {
+        "config": [
+          {
+            "subnet": "172.28.0.0/24"
+          }
+        ]
+      }
+    }
+  },
+  "secrets": {
+    "apppass": {
+      "name": "dbsec13-hmwm2fj9_apppass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/secrets/app_password.txt"
+    },
+    "dbpass": {
+      "name": "dbsec13-hmwm2fj9_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/secrets/db_password.txt"
+    }
+  },
+  "services": {
+    "anden": {
+      "cpus": 0.5,
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "image": "postgres:18",
+      "mem_limit": "134217728",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.20"
+        }
+      }
+    },
+    "app": {
+      "cpus": 0.5,
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "image": "postgres:18",
+      "mem_limit": "134217728",
+      "networks": {
+        "appnet": {
+          "ipv4_address": "172.28.0.20"
+        }
+      },
+      "secrets": [
+        {
+          "source": "apppass",
+          "target": "/run/secrets/apppass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs/server.crt",
+          "target": "/ca.crt",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "db": {
+      "cpus": 1,
+      "command": [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/run/labtls/server.crt",
+        "-c",
+        "ssl_key_file=/run/labtls/server.key",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+        "-c",
+        "ident_file=/etc/postgresql/pg_ident.conf",
+        "-c",
+        "listen_addresses=*",
+        "-c",
+        "password_encryption=scram-sha-256",
+        "-c",
+        "log_connections=on",
+        "-c",
+        "log_disconnections=on",
+        "-c",
+        "log_statement=ddl"
+      ],
+      "entrypoint": [
+        "bash",
+        "-ec",
+        "set -eu\ninstall -d -o postgres -g postgres -m 0700 /run/labtls\ninstall -o postgres -g postgres -m 0600 /bootstrap-certs/server.key /run/labtls/server.key\ninstall -o postgres -g postgres -m 0644 /bootstrap-certs/server.crt /run/labtls/server.crt\nexec docker-entrypoint.sh \"$$@\" ",
+        "start"
+      ],
+      "environment": {
+        "POSTGRES_DB": "appdb",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "admin"
+      },
+      "image": "postgres:18",
+      "mem_limit": "536870912",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.10"
+        },
+        "appnet": {
+          "ipv4_address": "172.28.0.10"
+        }
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "main",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/main.sql",
+          "target": "/docker-entrypoint-initdb.d/01.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs",
+          "target": "/bootstrap-certs",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/hba.conf",
+          "target": "/etc/postgresql/pg_hba.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/ident.conf",
+          "target": "/etc/postgresql/pg_ident.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "main": {
+      "name": "dbsec13-hmwm2fj9_main"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:08:51+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json up -d
+ Network dbsec13-hmwm2fj9_andet  Creating
+ Network dbsec13-hmwm2fj9_andet  Created
+ Network dbsec13-hmwm2fj9_appnet  Creating
+ Network dbsec13-hmwm2fj9_appnet  Created
+ Volume "dbsec13-hmwm2fj9_main"  Creating
+ Volume "dbsec13-hmwm2fj9_main"  Created
+ Container dbsec13-hmwm2fj9-app-1  Creating
+ Container dbsec13-hmwm2fj9-db-1  Creating
+ Container dbsec13-hmwm2fj9-anden-1  Creating
+ Container dbsec13-hmwm2fj9-db-1  Created
+ Container dbsec13-hmwm2fj9-anden-1  Created
+ Container dbsec13-hmwm2fj9-app-1  Created
+ Container dbsec13-hmwm2fj9-db-1  Starting
+ Container dbsec13-hmwm2fj9-anden-1  Starting
+ Container dbsec13-hmwm2fj9-app-1  Starting
+ Container dbsec13-hmwm2fj9-app-1  Started
+ Container dbsec13-hmwm2fj9-anden-1  Started
+ Container dbsec13-hmwm2fj9-db-1  Started
+exit 0
+
+2026-11-20T10:08:52+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json ps -q db
+949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b
+exit 0
+
+2026-11-20T10:08:53+01:00  $ docker exec 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -U admin -d appdb -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SET log_statement='none';
+SET log_min_duration_statement=-1;
+ALTER ROLE app_user PASSWORD '[udeladt]';
+
+2026-11-20T10:08:53+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+SET
+SET
+ALTER ROLE
+exit 0
+SQL
+SHOW listen_addresses;
+SHOW hba_file;
+SHOW data_directory;
+SHOW password_encryption;
+SHOW ssl;
+SELECT rolname,rolcanlogin FROM pg_roles ORDER BY 1;
+SELECT rule_number,type,database,user_name,address,auth_method,error FROM pg_hba_file_rules ORDER BY rule_number;
+
+2026-11-20T10:08:54+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+*
+/etc/postgresql/pg_hba.conf
+/var/lib/postgresql/18/docker
+scram-sha-256
+on
+admin|t
+app_user|t
+pg_checkpoint|f
+pg_create_subscription|f
+pg_database_owner|f
+pg_execute_server_program|f
+pg_maintain|f
+pg_monitor|f
+pg_read_all_data|f
+pg_read_all_settings|f
+pg_read_all_stats|f
+pg_read_server_files|f
+pg_signal_autovacuum_worker|f
+pg_signal_backend|f
+pg_stat_scan_tables|f
+pg_use_reserved_connections|f
+pg_write_all_data|f
+pg_write_server_files|f
+1|local|{all}|{admin}||peer|
+2|local|{all}|{all}||peer|
+3|hostssl|{appdb}|{app_user,test_user}|172.28.0.0|scram-sha-256|
+4|hostssl|{appdb}|{admin}|172.28.0.0|scram-sha-256|
+5|host|{all}|{all}|0.0.0.0|reject|
+6|host|{all}|{all}|::|reject|
+exit 0
+SQL
+CREATE ROLE test_user LOGIN;
+
+2026-11-20T10:08:54+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+CREATE ROLE
+exit 0
+SQL
+SET log_statement='none';
+SET log_min_duration_statement=-1;
+ALTER ROLE test_user PASSWORD '[udeladt]';
+
+2026-11-20T10:08:54+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+SET
+SET
+ALTER ROLE
+exit 0
+SQL
+SELECT rolname,rolpassword LIKE 'SCRAM-SHA-256$%' FROM pg_authid WHERE rolname IN ('test_user','app_user') ORDER BY 1;
+
+2026-11-20T10:08:54+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+app_user|t
+test_user|t
+exit 0
+
+2026-11-20T10:08:54+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*) FROM app_data;'
+20
+exit 0
+
+2026-11-20T10:08:54+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD anden psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.29.0.10 host=172.29.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.29.0.10", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "172.29.0.20", user "app_user", database "appdb", SSL encryption
+exit 2
+Bekræftet forventet afvisning / pg_hba.conf rejects connection.*172.29.0.20
+
+2026-11-20T10:08:54+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: FATAL:  password authentication failed for user "app_user"
+exit 2
+Bekræftet forventet afvisning / password authentication failed
+
+2026-11-20T10:08:54+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=disable connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "172.28.0.20", user "app_user", database "appdb", no encryption
+exit 2
+Bekræftet forventet afvisning / pg_hba.conf rejects connection.*no encryption
+
+2026-11-20T10:08:54+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=test_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+1
+exit 0
+
+2026-11-20T10:08:55+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=test_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: FATAL:  password authentication failed for user "test_user"
+exit 2
+Bekræftet forventet afvisning / password authentication failed
+
+2026-11-20T10:08:55+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=oevelse13-db dbname=appdb user=app_user sslmode=verify-full connect_timeout=4 sslrootcert=/ca.crt' -c 'SELECT ssl,version FROM pg_stat_ssl WHERE pid=pg_backend_pid();'
+t|TLSv1.3
+exit 0
+
+2026-11-20T10:08:55+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=ukendt.invalid dbname=appdb user=app_user sslmode=verify-full connect_timeout=4 sslrootcert=/ca.crt' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: server certificate for "localhost" (and 3 other names) does not match host name "ukendt.invalid"
+exit 2
+Bekræftet forventet afvisning / does not match host name
+
+2026-11-20T10:08:55+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json port db 5432
+127.0.0.1:60448
+exit 0
+
+2026-11-20T10:08:55+01:00  $ [PROJEKTMAPPE]/kontrol/hostclient/bin/python [PROJEKTMAPPE]/aflevering/scripts/host_tls.py 60448 [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs/server.crt require localhost
+True|TLSv1.3|172.28.0.1
+exit 0
+
+2026-11-20T10:08:55+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json port db 5432
+127.0.0.1:60448
+exit 0
+
+2026-11-20T10:08:55+01:00  $ [PROJEKTMAPPE]/kontrol/hostclient/bin/python [PROJEKTMAPPE]/aflevering/scripts/host_tls.py 60448 [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs/server.crt verify-full localhost
+True|TLSv1.3|172.28.0.1
+exit 0
+
+2026-11-20T10:08:56+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json port db 5432
+127.0.0.1:60448
+exit 0
+
+2026-11-20T10:08:56+01:00  $ [PROJEKTMAPPE]/kontrol/hostclient/bin/python [PROJEKTMAPPE]/aflevering/scripts/host_tls.py 60448 [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs/server.crt verify-full forkert.invalid
+connection failed: connection to server at "127.0.0.1", port 60448 failed: server certificate for "localhost" (and 3 other names) does not match host name "forkert.invalid"
+exit 2
+Bekræftet forventet afvisning / does not match host name
+
+2026-11-20T10:08:56+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*),md5(string_agg(id||'"'"':'"'"'||note,'"'"','"'"' ORDER BY id)) FROM app_data;'
+20|662278476e35b2745920be80e3ee9c7f
+exit 0
+SQL
+SET log_statement='none';
+SET log_min_duration_statement=-1;
+ALTER ROLE app_user PASSWORD '[udeladt]';
+
+2026-11-20T10:08:56+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+SET
+SET
+ALTER ROLE
+exit 0
+
+2026-11-20T10:08:56+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*) FROM app_data;'
+20
+exit 0
+
+2026-11-20T10:08:56+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD anden psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.29.0.10 host=172.29.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.29.0.10", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "172.29.0.20", user "app_user", database "appdb", SSL encryption
+exit 2
+Bekræftet forventet afvisning / pg_hba.conf rejects connection.*172.29.0.20
+
+2026-11-20T10:08:56+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: FATAL:  password authentication failed for user "app_user"
+exit 2
+Bekræftet forventet afvisning / password authentication failed
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=disable connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "172.28.0.20", user "app_user", database "appdb", no encryption
+exit 2
+Bekræftet forventet afvisning / pg_hba.conf rejects connection.*no encryption
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.10", port 5432 failed: FATAL:  password authentication failed for user "app_user"
+exit 2
+Bekræftet forventet afvisning / password authentication failed
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.10 host=172.28.0.10 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*),md5(string_agg(id||'"'"':'"'"'||note,'"'"','"'"' ORDER BY id)) FROM app_data;'
+20|662278476e35b2745920be80e3ee9c7f
+exit 0
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T app sh -ec 'export PGPASSWORD="$(cat /run/secrets/apppass)"; exec psql -XAtw -h 172.28.0.10 -U app_user -d "dbname=appdb sslmode=require" -c "SELECT count(*) FROM app_data"'
+20
+exit 0
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json config --format json
+{
+  "name": "dbsec13-hmwm2fj9",
+  "networks": {
+    "andet": {
+      "name": "dbsec13-hmwm2fj9_andet",
+      "ipam": {
+        "config": [
+          {
+            "subnet": "172.29.0.0/24"
+          }
+        ]
+      },
+      "internal": true
+    },
+    "appnet": {
+      "name": "dbsec13-hmwm2fj9_appnet",
+      "ipam": {
+        "config": [
+          {
+            "subnet": "172.28.0.0/24"
+          }
+        ]
+      }
+    }
+  },
+  "secrets": {
+    "apppass": {
+      "name": "dbsec13-hmwm2fj9_apppass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/secrets/app_password.txt"
+    },
+    "dbpass": {
+      "name": "dbsec13-hmwm2fj9_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/secrets/db_password.txt"
+    }
+  },
+  "services": {
+    "anden": {
+      "cpus": 0.5,
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "image": "postgres:18",
+      "mem_limit": "134217728",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.20"
+        }
+      }
+    },
+    "app": {
+      "cpus": 0.5,
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "image": "postgres:18",
+      "mem_limit": "134217728",
+      "networks": {
+        "appnet": {
+          "ipv4_address": "172.28.0.20"
+        }
+      },
+      "secrets": [
+        {
+          "source": "apppass",
+          "target": "/run/secrets/apppass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs/server.crt",
+          "target": "/ca.crt",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "challenge": {
+      "cpus": 1,
+      "command": [
+        "postgres",
+        "-c",
+        "ssl=off",
+        "-c",
+        "log_connections=off",
+        "-c",
+        "log_statement=none",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "appdb",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "admin"
+      },
+      "image": "postgres:18",
+      "mem_limit": "536870912",
+      "network_mode": "none",
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "chdata",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/challenge-seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/challenge-hba.conf",
+          "target": "/etc/postgresql/pg_hba.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "db": {
+      "cpus": 1,
+      "command": [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/run/labtls/server.crt",
+        "-c",
+        "ssl_key_file=/run/labtls/server.key",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+        "-c",
+        "ident_file=/etc/postgresql/pg_ident.conf",
+        "-c",
+        "listen_addresses=*",
+        "-c",
+        "password_encryption=scram-sha-256",
+        "-c",
+        "log_connections=on",
+        "-c",
+        "log_disconnections=on",
+        "-c",
+        "log_statement=ddl"
+      ],
+      "entrypoint": [
+        "bash",
+        "-ec",
+        "set -eu\ninstall -d -o postgres -g postgres -m 0700 /run/labtls\ninstall -o postgres -g postgres -m 0600 /bootstrap-certs/server.key /run/labtls/server.key\ninstall -o postgres -g postgres -m 0644 /bootstrap-certs/server.crt /run/labtls/server.crt\nexec docker-entrypoint.sh \"$$@\" ",
+        "start"
+      ],
+      "environment": {
+        "POSTGRES_DB": "appdb",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "admin"
+      },
+      "image": "postgres:18",
+      "mem_limit": "536870912",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.10"
+        },
+        "appnet": {
+          "ipv4_address": "172.28.0.10"
+        }
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "main",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/main.sql",
+          "target": "/docker-entrypoint-initdb.d/01.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs",
+          "target": "/bootstrap-certs",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/hba.conf",
+          "target": "/etc/postgresql/pg_hba.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/ident.conf",
+          "target": "/etc/postgresql/pg_ident.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "chdata": {
+      "name": "dbsec13-hmwm2fj9_chdata"
+    },
+    "main": {
+      "name": "dbsec13-hmwm2fj9_main"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json up -d
+ Volume "dbsec13-hmwm2fj9_chdata"  Creating
+ Volume "dbsec13-hmwm2fj9_chdata"  Created
+ Container dbsec13-hmwm2fj9-anden-1  Running
+ Container dbsec13-hmwm2fj9-db-1  Running
+ Container dbsec13-hmwm2fj9-challenge-1  Creating
+ Container dbsec13-hmwm2fj9-app-1  Running
+ Container dbsec13-hmwm2fj9-challenge-1  Created
+ Container dbsec13-hmwm2fj9-challenge-1  Starting
+ Container dbsec13-hmwm2fj9-challenge-1  Started
+exit 0
+
+2026-11-20T10:08:57+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json ps -q db
+949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b
+exit 0
+
+2026-11-20T10:08:58+01:00  $ docker exec 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -U admin -d appdb -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+
+2026-11-20T10:08:58+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json ps -q challenge
+57e024a8b6fbab2e043bb54c341efda0cb87d3166633671435f7af23646d7fb0
+exit 0
+
+2026-11-20T10:08:58+01:00  $ docker exec 57e024a8b6fbab2e043bb54c341efda0cb87d3166633671435f7af23646d7fb0 psql -XAt -U admin -d appdb -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SHOW ssl;
+SHOW log_connections;
+SELECT rolname,rolsuper FROM pg_roles WHERE rolname='app_user';
+SELECT type,address,auth_method FROM pg_hba_file_rules;
+SELECT count(*) FROM app_data;
+
+2026-11-20T10:08:59+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 57e024a8b6fbab2e043bb54c341efda0cb87d3166633671435f7af23646d7fb0 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+off
+off
+app_user|t
+local||trust
+host|0.0.0.0|trust
+host|::|trust
+10
+exit 0
+SQL
+SET log_statement='none';
+SET log_min_duration_statement=-1;
+ALTER ROLE app_user PASSWORD '[udeladt]';
+
+2026-11-20T10:08:59+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 57e024a8b6fbab2e043bb54c341efda0cb87d3166633671435f7af23646d7fb0 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+SET
+SET
+ALTER ROLE
+exit 0
+SQL
+BEGIN;
+ALTER ROLE app_user NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOREPLICATION;
+ALTER TABLE app_data OWNER TO admin;
+REVOKE ALL ON app_data,sensitive_data FROM PUBLIC,app_user;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC,app_user;
+GRANT USAGE ON SCHEMA public TO app_user;
+GRANT SELECT,INSERT,UPDATE ON app_data TO app_user;
+GRANT USAGE ON SEQUENCE app_data_id_seq TO app_user;
+COMMIT;
+
+
+2026-11-20T10:08:59+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 57e024a8b6fbab2e043bb54c341efda0cb87d3166633671435f7af23646d7fb0 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+BEGIN
+ALTER ROLE
+ALTER TABLE
+REVOKE
+REVOKE
+GRANT
+GRANT
+GRANT
+COMMIT
+exit 0
+
+2026-11-20T10:08:59+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json config --format json
+{
+  "name": "dbsec13-hmwm2fj9",
+  "networks": {
+    "andet": {
+      "name": "dbsec13-hmwm2fj9_andet",
+      "ipam": {
+        "config": [
+          {
+            "subnet": "172.29.0.0/24"
+          }
+        ]
+      },
+      "internal": true
+    },
+    "appnet": {
+      "name": "dbsec13-hmwm2fj9_appnet",
+      "ipam": {
+        "config": [
+          {
+            "subnet": "172.28.0.0/24"
+          }
+        ]
+      }
+    }
+  },
+  "secrets": {
+    "apppass": {
+      "name": "dbsec13-hmwm2fj9_apppass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/secrets/app_password.txt"
+    },
+    "dbpass": {
+      "name": "dbsec13-hmwm2fj9_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/secrets/db_password.txt"
+    }
+  },
+  "services": {
+    "anden": {
+      "cpus": 0.5,
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "image": "postgres:18",
+      "mem_limit": "134217728",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.20"
+        }
+      }
+    },
+    "app": {
+      "cpus": 0.5,
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "image": "postgres:18",
+      "mem_limit": "134217728",
+      "networks": {
+        "appnet": {
+          "ipv4_address": "172.28.0.20"
+        }
+      },
+      "secrets": [
+        {
+          "source": "apppass",
+          "target": "/run/secrets/apppass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs/server.crt",
+          "target": "/ca.crt",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "challenge": {
+      "cpus": 1,
+      "command": [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/run/labtls/server.crt",
+        "-c",
+        "ssl_key_file=/run/labtls/server.key",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+        "-c",
+        "ident_file=/etc/postgresql/pg_ident.conf",
+        "-c",
+        "listen_addresses=*",
+        "-c",
+        "password_encryption=scram-sha-256",
+        "-c",
+        "log_connections=on",
+        "-c",
+        "log_disconnections=on",
+        "-c",
+        "log_statement=ddl"
+      ],
+      "entrypoint": [
+        "bash",
+        "-ec",
+        "set -eu\ninstall -d -o postgres -g postgres -m 0700 /run/labtls\ninstall -o postgres -g postgres -m 0600 /bootstrap-certs/server.key /run/labtls/server.key\ninstall -o postgres -g postgres -m 0644 /bootstrap-certs/server.crt /run/labtls/server.crt\nexec docker-entrypoint.sh \"$$@\" ",
+        "start"
+      ],
+      "environment": {
+        "POSTGRES_DB": "appdb",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "admin"
+      },
+      "image": "postgres:18",
+      "mem_limit": "536870912",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.11"
+        },
+        "appnet": {
+          "ipv4_address": "172.28.0.11"
+        }
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "chdata",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/challenge-seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/challenge-hba.conf",
+          "target": "/etc/postgresql/pg_hba.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs",
+          "target": "/bootstrap-certs",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/ident.conf",
+          "target": "/etc/postgresql/pg_ident.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "db": {
+      "cpus": 1,
+      "command": [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/run/labtls/server.crt",
+        "-c",
+        "ssl_key_file=/run/labtls/server.key",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+        "-c",
+        "ident_file=/etc/postgresql/pg_ident.conf",
+        "-c",
+        "listen_addresses=*",
+        "-c",
+        "password_encryption=scram-sha-256",
+        "-c",
+        "log_connections=on",
+        "-c",
+        "log_disconnections=on",
+        "-c",
+        "log_statement=ddl"
+      ],
+      "entrypoint": [
+        "bash",
+        "-ec",
+        "set -eu\ninstall -d -o postgres -g postgres -m 0700 /run/labtls\ninstall -o postgres -g postgres -m 0600 /bootstrap-certs/server.key /run/labtls/server.key\ninstall -o postgres -g postgres -m 0644 /bootstrap-certs/server.crt /run/labtls/server.crt\nexec docker-entrypoint.sh \"$$@\" ",
+        "start"
+      ],
+      "environment": {
+        "POSTGRES_DB": "appdb",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "admin"
+      },
+      "image": "postgres:18",
+      "mem_limit": "536870912",
+      "networks": {
+        "andet": {
+          "ipv4_address": "172.29.0.10"
+        },
+        "appnet": {
+          "ipv4_address": "172.28.0.10"
+        }
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 5432,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "main",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/main.sql",
+          "target": "/docker-entrypoint-initdb.d/01.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/certs",
+          "target": "/bootstrap-certs",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/hba.conf",
+          "target": "/etc/postgresql/pg_hba.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/ident.conf",
+          "target": "/etc/postgresql/pg_ident.conf",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "chdata": {
+      "name": "dbsec13-hmwm2fj9_chdata"
+    },
+    "main": {
+      "name": "dbsec13-hmwm2fj9_main"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:08:59+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json up -d
+ Container dbsec13-hmwm2fj9-anden-1  Running
+ Container dbsec13-hmwm2fj9-db-1  Running
+ Container dbsec13-hmwm2fj9-app-1  Running
+ Container dbsec13-hmwm2fj9-challenge-1  Recreate
+ Container dbsec13-hmwm2fj9-challenge-1  Recreated
+ Container dbsec13-hmwm2fj9-challenge-1  Starting
+ Container dbsec13-hmwm2fj9-challenge-1  Started
+exit 0
+
+2026-11-20T10:08:59+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json ps -q db
+949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b
+exit 0
+
+2026-11-20T10:08:59+01:00  $ docker exec 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b psql -XAt -U admin -d appdb -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+
+2026-11-20T10:09:00+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json ps -q challenge
+1ae12e951e05d3ca95727cc4b477165e668faa01732a4914c97e0c72f0491402
+exit 0
+
+2026-11-20T10:09:00+01:00  $ docker exec 1ae12e951e05d3ca95727cc4b477165e668faa01732a4914c97e0c72f0491402 psql -XAt -U admin -d appdb -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SHOW ssl;
+SHOW log_connections;
+SHOW log_statement;
+SELECT rolname,rolsuper,rolbypassrls FROM pg_roles WHERE rolname='app_user';
+SELECT count(*) FROM app_data;
+SELECT type,address,auth_method FROM pg_hba_file_rules;
+
+2026-11-20T10:09:00+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 1ae12e951e05d3ca95727cc4b477165e668faa01732a4914c97e0c72f0491402 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U admin -d appdb
+on
+on
+ddl
+app_user|f|f
+10
+local||peer
+local||peer
+hostssl|172.28.0.0|scram-sha-256
+hostssl|172.28.0.0|scram-sha-256
+host|0.0.0.0|reject
+host|::|reject
+exit 0
+
+2026-11-20T10:09:00+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*) FROM app_data;'
+10
+exit 0
+
+2026-11-20T10:09:00+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD anden psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.29.0.11 host=172.29.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.29.0.11", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "172.29.0.20", user "app_user", database "appdb", SSL encryption
+exit 2
+Bekræftet forventet afvisning / pg_hba.conf rejects connection.*172.29.0.20
+
+2026-11-20T10:09:00+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.11", port 5432 failed: FATAL:  password authentication failed for user "app_user"
+exit 2
+Bekræftet forventet afvisning / password authentication failed
+
+2026-11-20T10:09:00+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=disable connect_timeout=4' -c 'SELECT 1;'
+psql: error: connection to server at "172.28.0.11", port 5432 failed: FATAL:  pg_hba.conf rejects connection for host "172.28.0.20", user "app_user", database "appdb", no encryption
+exit 2
+Bekræftet forventet afvisning / pg_hba.conf rejects connection.*no encryption
+
+2026-11-20T10:09:00+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*) FROM sensitive_data;'
+ERROR:  42501: permission denied for table sensitive_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 1
+Bekræftet forventet afvisning / 42501.*permission denied
+
+2026-11-20T10:09:01+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'DELETE FROM app_data WHERE id=1;'
+ERROR:  42501: permission denied for table app_data
+LOCATION:  aclcheck_error, aclchk.c:2793
+exit 1
+Bekræftet forventet afvisning / 42501.*permission denied
+
+2026-11-20T10:09:01+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'BEGIN; INSERT INTO app_data(note) VALUES ('"'"'lab'"'"'); UPDATE app_data SET note='"'"'rettet'"'"' WHERE id=1; ROLLBACK;'
+BEGIN
+INSERT 0 1
+UPDATE 1
+ROLLBACK
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json exec -T -e PGPASSWORD app psql -XAtw -v ON_ERROR_STOP=1 -v VERBOSITY=verbose 'hostaddr=172.28.0.11 host=172.28.0.11 dbname=appdb user=app_user sslmode=require connect_timeout=4' -c 'SELECT count(*) FROM app_data;'
+10
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker logs --timestamps 1ae12e951e05d3ca95727cc4b477165e668faa01732a4914c97e0c72f0491402
+2026-11-20T09:08:59.796723638Z 
+2026-11-20T09:08:59.796747138Z PostgreSQL Database directory appears to contain a database; Skipping initialization
+2026-11-20T09:08:59.796748846Z 
+2026-11-20T09:08:59.811657971Z 2026-11-20 09:08:59.811 UTC [1] LOG:  starting PostgreSQL 18.7 (Debian 18.7-1.pgdg13+5) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-11-20T09:08:59.812167263Z 2026-11-20 09:08:59.812 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-11-20T09:08:59.812172638Z 2026-11-20 09:08:59.812 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-11-20T09:08:59.814213471Z 2026-11-20 09:08:59.814 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-11-20T09:08:59.818849388Z 2026-11-20 09:08:59.818 UTC [35] LOG:  database system was shut down at 2026-11-20 09:08:59 UTC
+2026-11-20T09:08:59.822154846Z 2026-11-20 09:08:59.822 UTC [1] LOG:  database system is ready to accept connections
+2026-11-20T09:09:00.236332972Z 2026-11-20 09:09:00.236 UTC [52] LOG:  connection received: host=[local]
+2026-11-20T09:09:00.236770888Z 2026-11-20 09:09:00.236 UTC [52] LOG:  connection authenticated: identity="root" method=peer (/etc/postgresql/pg_hba.conf:1)
+2026-11-20T09:09:00.236780013Z 2026-11-20 09:09:00.236 UTC [52] LOG:  connection authorized: user=admin database=appdb application_name=psql
+2026-11-20T09:09:00.240696888Z 2026-11-20 09:09:00.240 UTC [52] LOG:  disconnection: session time: 0:00:00.004 user=admin database=appdb host=[local]
+2026-11-20T09:09:00.303942722Z 2026-11-20 09:09:00.303 UTC [59] LOG:  connection received: host=[local]
+2026-11-20T09:09:00.304327847Z 2026-11-20 09:09:00.304 UTC [59] LOG:  connection authenticated: identity="root" method=peer (/etc/postgresql/pg_hba.conf:1)
+2026-11-20T09:09:00.304338305Z 2026-11-20 09:09:00.304 UTC [59] LOG:  connection authorized: user=admin database=appdb application_name=psql
+2026-11-20T09:09:00.305166930Z 2026-11-20 09:09:00.305 UTC [59] LOG:  disconnection: session time: 0:00:00.001 user=admin database=appdb host=[local]
+2026-11-20T09:09:00.366329138Z 2026-11-20 09:09:00.366 UTC [66] LOG:  connection received: host=[local]
+2026-11-20T09:09:00.366669888Z 2026-11-20 09:09:00.366 UTC [66] LOG:  connection authenticated: identity="root" method=peer (/etc/postgresql/pg_hba.conf:1)
+2026-11-20T09:09:00.366680513Z 2026-11-20 09:09:00.366 UTC [66] LOG:  connection authorized: user=admin database=appdb application_name=psql
+2026-11-20T09:09:00.369685763Z 2026-11-20 09:09:00.369 UTC [66] LOG:  disconnection: session time: 0:00:00.003 user=admin database=appdb host=[local]
+2026-11-20T09:09:00.482959805Z 2026-11-20 09:09:00.482 UTC [67] LOG:  connection received: host=172.28.0.20 port=52248
+2026-11-20T09:09:00.489862972Z 2026-11-20 09:09:00.489 UTC [67] LOG:  connection authenticated: identity="app_user" method=scram-sha-256 (/etc/postgresql/pg_hba.conf:3)
+2026-11-20T09:09:00.489881638Z 2026-11-20 09:09:00.489 UTC [67] LOG:  connection authorized: user=app_user database=appdb application_name=psql SSL enabled (protocol=TLSv1.3, cipher=TLS_AES_256_GCM_SHA384, bits=256)
+2026-11-20T09:09:00.491038722Z 2026-11-20 09:09:00.490 UTC [67] LOG:  disconnection: session time: 0:00:00.008 user=app_user database=appdb host=172.28.0.20 port=52248
+2026-11-20T09:09:00.614839638Z 2026-11-20 09:09:00.614 UTC [68] LOG:  connection received: host=172.29.0.20 port=52068
+2026-11-20T09:09:00.618640430Z 2026-11-20 09:09:00.618 UTC [68] FATAL:  pg_hba.conf rejects connection for host "172.29.0.20", user "app_user", database "appdb", SSL encryption
+2026-11-20T09:09:00.741302430Z 2026-11-20 09:09:00.741 UTC [69] LOG:  connection received: host=172.28.0.20 port=52252
+2026-11-20T09:09:00.748619180Z 2026-11-20 09:09:00.748 UTC [69] FATAL:  password authentication failed for user "app_user"
+2026-11-20T09:09:00.748626264Z 2026-11-20 09:09:00.748 UTC [69] DETAIL:  Connection matched file "/etc/postgresql/pg_hba.conf" line 3: "hostssl appdb app_user 172.28.0.0/24 scram-sha-256"
+2026-11-20T09:09:00.864640472Z 2026-11-20 09:09:00.864 UTC [70] LOG:  connection received: host=172.28.0.20 port=52268
+2026-11-20T09:09:00.865001180Z 2026-11-20 09:09:00.864 UTC [70] FATAL:  pg_hba.conf rejects connection for host "172.28.0.20", user "app_user", database "appdb", no encryption
+2026-11-20T09:09:00.994373805Z 2026-11-20 09:09:00.994 UTC [71] LOG:  connection received: host=172.28.0.20 port=52284
+2026-11-20T09:09:01.001611722Z 2026-11-20 09:09:01.001 UTC [71] LOG:  connection authenticated: identity="app_user" method=scram-sha-256 (/etc/postgresql/pg_hba.conf:3)
+2026-11-20T09:09:01.001619847Z 2026-11-20 09:09:01.001 UTC [71] LOG:  connection authorized: user=app_user database=appdb application_name=psql SSL enabled (protocol=TLSv1.3, cipher=TLS_AES_256_GCM_SHA384, bits=256)
+2026-11-20T09:09:01.002669555Z 2026-11-20 09:09:01.002 UTC [71] ERROR:  permission denied for table sensitive_data
+2026-11-20T09:09:01.002681889Z 2026-11-20 09:09:01.002 UTC [71] STATEMENT:  SELECT count(*) FROM sensitive_data;
+2026-11-20T09:09:01.002848722Z 2026-11-20 09:09:01.002 UTC [71] LOG:  disconnection: session time: 0:00:00.008 user=app_user database=appdb host=172.28.0.20 port=52284
+2026-11-20T09:09:01.120010222Z 2026-11-20 09:09:01.119 UTC [72] LOG:  connection received: host=172.28.0.20 port=52298
+2026-11-20T09:09:01.126903514Z 2026-11-20 09:09:01.126 UTC [72] LOG:  connection authenticated: identity="app_user" method=scram-sha-256 (/etc/postgresql/pg_hba.conf:3)
+2026-11-20T09:09:01.126918847Z 2026-11-20 09:09:01.126 UTC [72] LOG:  connection authorized: user=app_user database=appdb application_name=psql SSL enabled (protocol=TLSv1.3, cipher=TLS_AES_256_GCM_SHA384, bits=256)
+2026-11-20T09:09:01.127888055Z 2026-11-20 09:09:01.127 UTC [72] ERROR:  permission denied for table app_data
+2026-11-20T09:09:01.127898472Z 2026-11-20 09:09:01.127 UTC [72] STATEMENT:  DELETE FROM app_data WHERE id=1;
+2026-11-20T09:09:01.128111597Z 2026-11-20 09:09:01.128 UTC [72] LOG:  disconnection: session time: 0:00:00.008 user=app_user database=appdb host=172.28.0.20 port=52298
+2026-11-20T09:09:01.239649555Z 2026-11-20 09:09:01.239 UTC [73] LOG:  connection received: host=172.28.0.20 port=52306
+2026-11-20T09:09:01.246600555Z 2026-11-20 09:09:01.246 UTC [73] LOG:  connection authenticated: identity="app_user" method=scram-sha-256 (/etc/postgresql/pg_hba.conf:3)
+2026-11-20T09:09:01.246622764Z 2026-11-20 09:09:01.246 UTC [73] LOG:  connection authorized: user=app_user database=appdb application_name=psql SSL enabled (protocol=TLSv1.3, cipher=TLS_AES_256_GCM_SHA384, bits=256)
+2026-11-20T09:09:01.248208680Z 2026-11-20 09:09:01.248 UTC [73] LOG:  disconnection: session time: 0:00:00.008 user=app_user database=appdb host=172.28.0.20 port=52306
+2026-11-20T09:09:01.360813333Z 2026-11-20 09:09:01.360 UTC [74] LOG:  connection received: host=172.28.0.20 port=52308
+2026-11-20T09:09:01.367580333Z 2026-11-20 09:09:01.367 UTC [74] LOG:  connection authenticated: identity="app_user" method=scram-sha-256 (/etc/postgresql/pg_hba.conf:3)
+2026-11-20T09:09:01.367586625Z 2026-11-20 09:09:01.367 UTC [74] LOG:  connection authorized: user=app_user database=appdb application_name=psql SSL enabled (protocol=TLSv1.3, cipher=TLS_AES_256_GCM_SHA384, bits=256)
+2026-11-20T09:09:01.368741833Z 2026-11-20 09:09:01.368 UTC [74] LOG:  disconnection: session time: 0:00:00.008 user=app_user database=appdb host=172.28.0.20 port=52308
+exit 0
+Challenge: kildekonfigurationens globale portbinding og faste koder blev kun inspiceret. Rollen, HBA, TLS og logging blev målt før og efter på samme datavolumen.
+
+2026-11-20T10:09:01+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json ps -a -q
+358ab83f5b69bab1ed478de385ccb8a24c0db4ea7fb535806218af4c765e31a0
+2acc8e0d6877ba32db2cd60809dd6e816fb2b30873467b68e541804e254b1ca8
+1ae12e951e05d3ca95727cc4b477165e668faa01732a4914c97e0c72f0491402
+949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 358ab83f5b69bab1ed478de385ccb8a24c0db4ea7fb535806218af4c765e31a0
+dbsec13-hmwm2fj9
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 2acc8e0d6877ba32db2cd60809dd6e816fb2b30873467b68e541804e254b1ca8
+dbsec13-hmwm2fj9
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 1ae12e951e05d3ca95727cc4b477165e668faa01732a4914c97e0c72f0491402
+dbsec13-hmwm2fj9
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 949b4ec836bdf6a5d6cfce7e5a937b63ef1103cfb6c587fc721477c2da3a013b
+dbsec13-hmwm2fj9
+exit 0
+
+2026-11-20T10:09:01+01:00  $ docker compose -p dbsec13-hmwm2fj9 -f [PROJEKTMAPPE]/kontrol/dbsec13-hmwm2fj9/compose.json down -v --timeout 8
+ Container dbsec13-hmwm2fj9-challenge-1  Stopping
+ Container dbsec13-hmwm2fj9-db-1  Stopping
+ Container dbsec13-hmwm2fj9-app-1  Stopping
+ Container dbsec13-hmwm2fj9-anden-1  Stopping
+ Container dbsec13-hmwm2fj9-challenge-1  Stopped
+ Container dbsec13-hmwm2fj9-challenge-1  Removing
+ Container dbsec13-hmwm2fj9-db-1  Stopped
+ Container dbsec13-hmwm2fj9-db-1  Removing
+ Container dbsec13-hmwm2fj9-challenge-1  Removed
+ Container dbsec13-hmwm2fj9-db-1  Removed
+ Container dbsec13-hmwm2fj9-anden-1  Stopped
+ Container dbsec13-hmwm2fj9-anden-1  Removing
+ Container dbsec13-hmwm2fj9-anden-1  Removed
+ Container dbsec13-hmwm2fj9-app-1  Stopped
+ Container dbsec13-hmwm2fj9-app-1  Removing
+ Container dbsec13-hmwm2fj9-app-1  Removed
+ Volume dbsec13-hmwm2fj9_main  Removing
+ Volume dbsec13-hmwm2fj9_chdata  Removing
+ Network dbsec13-hmwm2fj9_andet  Removing
+ Network dbsec13-hmwm2fj9_appnet  Removing
+ Volume dbsec13-hmwm2fj9_main  Removed
+ Volume dbsec13-hmwm2fj9_chdata  Removed
+ Network dbsec13-hmwm2fj9_appnet  Removed
+ Network dbsec13-hmwm2fj9_andet  Removed
+exit 0
+2026-11-20T10:09:09+01:00  PASS

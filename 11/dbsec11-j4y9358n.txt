@@ -1,0 +1,150 @@
+
+2026-11-20T10:06:15+01:00  $ docker compose -p dbsec11-j4y9358n -f [PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/compose.json config --format json
+{
+  "name": "dbsec11-j4y9358n",
+  "networks": {
+    "default": {
+      "name": "dbsec11-j4y9358n_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec11-j4y9358n_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec11-j4y9358n_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:06:15+01:00  $ docker compose -p dbsec11-j4y9358n -f [PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/compose.json up -d
+ Network dbsec11-j4y9358n_default  Creating
+ Network dbsec11-j4y9358n_default  Created
+ Volume "dbsec11-j4y9358n_data"  Creating
+ Volume "dbsec11-j4y9358n_data"  Created
+ Container dbsec11-j4y9358n-postgres-1  Creating
+ Container dbsec11-j4y9358n-postgres-1  Created
+ Container dbsec11-j4y9358n-postgres-1  Starting
+ Container dbsec11-j4y9358n-postgres-1  Started
+exit 0
+
+2026-11-20T10:06:16+01:00  $ docker compose -p dbsec11-j4y9358n -f [PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/compose.json ps -q postgres
+4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35
+exit 0
+
+2026-11-20T10:06:17+01:00  $ docker exec 4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT extname,extversion FROM pg_extension WHERE extname='pgcrypto';
+
+2026-11-20T10:06:17+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+pgcrypto|1.4
+exit 0
+SQL
+SELECT brugernavn,pg_typeof(cpr_krypteret),octet_length(cpr_krypteret),
+ left(encode(cpr_krypteret,'hex'),16) AS binaer_praefiks
+ FROM brugere_krypteret ORDER BY id LIMIT 3;
+
+2026-11-20T10:06:17+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+bruger1|bytea|115|c30d04070302560f
+bruger2|bytea|115|c30d04070302dc94
+bruger3|bytea|115|c30d040703028bbe
+exit 0
+SQL
+SELECT count(*),bool_and(pgp_sym_decrypt(cpr_krypteret,'[udeladt]')='[udeladt]'||id) FROM brugere_krypteret;
+SELECT pgp_sym_encrypt('[udeladt]','[udeladt]')<>pgp_sym_encrypt('[udeladt]','[udeladt]');
+
+2026-11-20T10:06:17+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+100|f
+t
+exit 0
+Traceback (most recent call last):
+  File "[PROJEKTMAPPE]/aflevering/scripts/lab.py", line 136, in main
+    exec(compile(code,n+'/test.py','exec'),{'L':lab,'check':check,'re':re,'time':time,'sp':sp,'Path':Path,'json':json,'shlex':shlex,'secrets':secrets,'os':os,'ROOT':ROOT,'A':A})
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "11/test.py", line 11, in <module>
+  File "[PROJEKTMAPPE]/aflevering/scripts/lab.py", line 108, in sql
+    if expect is not None:check(re.search(expect,out,re.M|re.S),f'Mangler resultat / {expect}')
+                          ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "[PROJEKTMAPPE]/aflevering/scripts/lab.py", line 13, in check
+    raise AssertionError(message)
+AssertionError: Mangler resultat / 100\|t\nt
+
+
+2026-11-20T10:06:17+01:00  $ docker compose -p dbsec11-j4y9358n -f [PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/compose.json ps -a -q
+4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35
+exit 0
+
+2026-11-20T10:06:17+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 4a6026c1808d0a0a58328b1c502d10b49789b209dc35779ba58e2acc3ee97e35
+dbsec11-j4y9358n
+exit 0
+
+2026-11-20T10:06:17+01:00  $ docker compose -p dbsec11-j4y9358n -f [PROJEKTMAPPE]/kontrol/dbsec11-j4y9358n/compose.json down -v --timeout 8
+ Container dbsec11-j4y9358n-postgres-1  Stopping
+ Container dbsec11-j4y9358n-postgres-1  Stopped
+ Container dbsec11-j4y9358n-postgres-1  Removing
+ Container dbsec11-j4y9358n-postgres-1  Removed
+ Volume dbsec11-j4y9358n_data  Removing
+ Network dbsec11-j4y9358n_default  Removing
+ Volume dbsec11-j4y9358n_data  Removed
+ Network dbsec11-j4y9358n_default  Removed
+exit 0
+2026-11-20T10:06:18+01:00  PARTIAL

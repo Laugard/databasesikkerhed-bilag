@@ -1,0 +1,320 @@
+
+2026-11-20T10:04:22+01:00  $ docker compose -p dbsec05-c6vffng1 -f [PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/compose.json config --format json
+{
+  "name": "dbsec05-c6vffng1",
+  "networks": {
+    "default": {
+      "name": "dbsec05-c6vffng1_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec05-c6vffng1_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec05-c6vffng1_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:04:22+01:00  $ docker compose -p dbsec05-c6vffng1 -f [PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/compose.json up -d
+ Network dbsec05-c6vffng1_default  Creating
+ Network dbsec05-c6vffng1_default  Created
+ Volume "dbsec05-c6vffng1_data"  Creating
+ Volume "dbsec05-c6vffng1_data"  Created
+ Container dbsec05-c6vffng1-postgres-1  Creating
+ Container dbsec05-c6vffng1-postgres-1  Created
+ Container dbsec05-c6vffng1-postgres-1  Starting
+ Container dbsec05-c6vffng1-postgres-1  Started
+exit 0
+
+2026-11-20T10:04:22+01:00  $ docker compose -p dbsec05-c6vffng1 -f [PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/compose.json ps -q postgres
+513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359
+exit 0
+
+2026-11-20T10:04:24+01:00  $ docker exec 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+\d ordrer_denormaliseret
+SELECT * FROM ordrer_denormaliseret LIMIT 10;
+SELECT count(DISTINCT kunde_info),count(*) FROM ordrer_denormaliseret;
+SELECT runde_id,count(*) FROM ordrer_denormaliseret GROUP BY 1 HAVING count(*)>1 ORDER BY 1 LIMIT 5;
+SELECT count(*) FROM (SELECT runde_id FROM ordrer_denormaliseret GROUP BY 1 HAVING count(DISTINCT (runde_navn,runde_dato,runde_status))>1) x;
+SELECT count(*) FILTER (WHERE forventet_levering<ordre_dato::date),count(*) FILTER (WHERE forventet_levering>CURRENT_DATE) FROM ordrer_denormaliseret;
+
+2026-11-20T10:04:24+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ordre_id|integer||not null|nextval('ordrer_denormaliseret_ordre_id_seq'::regclass)
+kunde_id|integer|||
+kunde_info|jsonb|||
+runde_id|integer|||
+runde_navn|character varying(100)|||
+runde_dato|date|||
+runde_status|character varying(20)|||
+beloeb|numeric(10,2)|||
+ordre_dato|timestamp without time zone|||now()
+status|character varying(20)|||'pendende'::character varying
+produkt_id|integer|||
+produkt_navn|character varying(100)|||
+antal|integer|||1
+enhedspris|numeric(10,2)|||
+forventet_levering|date|||
+1|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|6|Runde 6|2023-02-12|afsluttet|4246.06|2023-03-12 00:00:00|afsluttet|265|Produkt 265|9|799.04|2023-03-07
+2|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|36|Runde 36|2023-09-10|afsluttet|2831.45|2023-10-03 00:00:00|annulleret|437|Produkt 437|6|489.14|2023-09-14
+3|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|91|Runde 91|2024-09-29|aktiv|536.84|2024-10-28 00:00:00|annulleret|475|Produkt 475|9|462.47|2024-10-13
+4|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|74|Runde 74|2024-06-02|aktiv|387.68|2024-06-13 00:00:00|afsluttet|396|Produkt 396|9|152.56|2024-06-30
+5|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|8|Runde 8|2023-02-26|aktiv|2759.98|2023-03-09 00:00:00|afsluttet|324|Produkt 324|1|705.88|2023-08-26
+6|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|58|Runde 58|2024-02-11|aktiv|525.56|2024-03-04 00:00:00|afsluttet|169|Produkt 169|1|118.18|2024-03-08
+7|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|8|Runde 8|2023-02-26|aktiv|1974.29|2023-03-21 00:00:00|afsluttet|152|Produkt 152|2|905.86|2023-03-07
+8|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|56|Runde 56|2024-01-28|aktiv|3444.15|2024-02-08 00:00:00|pendende|157|Produkt 157|11|633.03|2024-02-06
+9|1|{"navn": "Kunde 1", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|92|Runde 92|2024-10-06|aktiv|915.07|2024-10-24 00:00:00|afsluttet|350|Produkt 350|5|296.61|2025-04-06
+10|2|{"navn": "Kunde 2", "email": "[ANONYMISERET]", "telefon": "[ANONYMISERET]"}|64|Runde 64|2024-03-24|aktiv|1207.12|2024-03-31 00:00:00|afsluttet|58|Produkt 58|2|470.76|2024-03-26
+10000|100000
+1|1024
+2|962
+3|964
+4|988
+5|960
+0
+43248|0
+exit 0
+SQL
+BEGIN;
+CREATE TABLE kunder (kunde_id int PRIMARY KEY, navn text NOT NULL, email text NOT NULL, telefon text NOT NULL);
+CREATE TABLE runder (runde_id int PRIMARY KEY, navn text NOT NULL, dato date NOT NULL, status text NOT NULL);
+CREATE TABLE produkter (produkt_id int PRIMARY KEY, navn text NOT NULL);
+CREATE TABLE ordrer (ordre_id int PRIMARY KEY, runde_id int NOT NULL REFERENCES runder, kunde_id int NOT NULL REFERENCES kunder,
+    beloeb numeric(10,2), ordre_dato timestamp, status text, forventet_levering date);
+CREATE TABLE ordre_linjer (linje_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, ordre_id int NOT NULL REFERENCES ordrer,
+    produkt_id int NOT NULL REFERENCES produkter, antal int NOT NULL, pris numeric(10,2) NOT NULL);
+INSERT INTO kunder SELECT DISTINCT kunde_id,kunde_info->>'navn',kunde_info->>'email',kunde_info->>'telefon' FROM ordrer_denormaliseret;
+INSERT INTO runder SELECT DISTINCT runde_id,runde_navn,runde_dato,runde_status FROM ordrer_denormaliseret;
+INSERT INTO produkter SELECT DISTINCT produkt_id,produkt_navn FROM ordrer_denormaliseret;
+INSERT INTO ordrer SELECT ordre_id,runde_id,kunde_id,beloeb,ordre_dato,status,forventet_levering FROM ordrer_denormaliseret;
+INSERT INTO ordre_linjer(ordre_id,produkt_id,antal,pris) SELECT ordre_id,produkt_id,antal,enhedspris FROM ordrer_denormaliseret;
+COMMIT;
+CREATE VIEW rekonstrueret AS
+SELECT o.ordre_id,k.kunde_id,jsonb_build_object('navn',k.navn,'email',k.email,'telefon',k.telefon) AS kunde_info,
+ r.runde_id,r.navn AS runde_navn,r.dato AS runde_dato,r.status AS runde_status,o.beloeb,o.ordre_dato,o.status,
+ p.produkt_id,p.navn AS produkt_navn,l.antal,l.pris AS enhedspris,o.forventet_levering
+FROM ordrer o JOIN kunder k USING(kunde_id) JOIN runder r USING(runde_id)
+JOIN ordre_linjer l USING(ordre_id) JOIN produkter p USING(produkt_id);
+SELECT (SELECT count(*) FROM kunder),(SELECT count(*) FROM runder),(SELECT count(*) FROM produkter),
+ (SELECT count(*) FROM ordrer),(SELECT count(*) FROM ordre_linjer);
+SELECT count(*) AS afvigelser FROM (
+ (TABLE rekonstrueret EXCEPT ALL TABLE ordrer_denormaliseret)
+ UNION ALL (TABLE ordrer_denormaliseret EXCEPT ALL TABLE rekonstrueret)) diff;
+
+
+2026-11-20T10:04:24+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+INSERT 0 10000
+INSERT 0 100
+INSERT 0 500
+INSERT 0 100000
+INSERT 0 100000
+COMMIT
+CREATE VIEW
+10000|100|500|100000|100000
+0
+exit 0
+SQL
+INSERT INTO ordre_linjer(ordre_id,produkt_id,antal,pris) VALUES(-1,1,1,5);
+
+2026-11-20T10:04:27+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ERROR:  23503: insert or update on table "ordre_linjer" violates foreign key constraint "ordre_linjer_ordre_id_fkey"
+DETAIL:  Key (ordre_id)=(-1) is not present in table "ordrer".
+SCHEMA NAME:  public
+TABLE NAME:  ordre_linjer
+CONSTRAINT NAME:  ordre_linjer_ordre_id_fkey
+LOCATION:  ri_ReportViolation, ri_triggers.c:2826
+exit 3
+Bekræftet forventet afvisning / 23503
+SQL
+BEGIN;
+ALTER TABLE ordrer ADD COLUMN kunde_navn text;
+UPDATE ordrer o SET kunde_navn=k.navn FROM kunder k WHERE o.kunde_id=k.kunde_id;
+ALTER TABLE ordrer ALTER COLUMN kunde_navn SET NOT NULL;
+CREATE FUNCTION hent_navn() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ SELECT navn INTO STRICT NEW.kunde_navn FROM kunder WHERE kunde_id=NEW.kunde_id FOR SHARE;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER ordre_navn BEFORE INSERT OR UPDATE OF kunde_id,kunde_navn ON ordrer FOR EACH ROW EXECUTE FUNCTION hent_navn();
+CREATE INDEX ordre_kunde_idx ON ordrer(kunde_id);
+CREATE FUNCTION udbred_navn() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE ordrer SET kunde_navn=NEW.navn WHERE kunde_id=NEW.kunde_id;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER kunde_navn AFTER UPDATE OF navn ON kunder FOR EACH ROW WHEN (OLD.navn IS DISTINCT FROM NEW.navn) EXECUTE FUNCTION udbred_navn();
+COMMIT;
+VACUUM ANALYZE ordrer;
+ANALYZE kunder;
+BEGIN;
+UPDATE kunder SET navn='Omdøbt' WHERE kunde_id=1;
+INSERT INTO ordrer(ordre_id,runde_id,kunde_id) VALUES(-1,1,1);
+SELECT kunde_navn FROM ordrer WHERE ordre_id=-1;
+UPDATE ordrer SET kunde_id=2 WHERE ordre_id=-1;
+SELECT kunde_navn FROM ordrer WHERE ordre_id=-1;
+SELECT count(*) AS uens FROM ordrer o JOIN kunder k USING(kunde_id) WHERE o.kunde_navn<>k.navn;
+ROLLBACK;
+
+2026-11-20T10:04:27+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+ALTER TABLE
+UPDATE 100000
+ALTER TABLE
+CREATE FUNCTION
+CREATE TRIGGER
+CREATE INDEX
+CREATE FUNCTION
+CREATE TRIGGER
+COMMIT
+VACUUM
+ANALYZE
+BEGIN
+UPDATE 1
+INSERT 0 1
+Omdøbt
+UPDATE 1
+Kunde 2
+0
+ROLLBACK
+exit 0
+SQL
+EXPLAIN (ANALYZE,BUFFERS) SELECT o.ordre_id,o.beloeb,k.navn FROM ordrer o JOIN kunder k USING(kunde_id) WHERE runde_id=5;
+EXPLAIN (ANALYZE,BUFFERS) SELECT ordre_id,beloeb,kunde_navn FROM ordrer WHERE runde_id=5;
+EXPLAIN (ANALYZE,BUFFERS) SELECT ordre_id,beloeb,kunde_navn FROM ordrer WHERE runde_id=5;
+EXPLAIN (ANALYZE,BUFFERS) SELECT o.ordre_id,o.beloeb,k.navn FROM ordrer o JOIN kunder k USING(kunde_id) WHERE runde_id=5;
+
+2026-11-20T10:04:27+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Hash Join  (cost=319.00..3642.66 rows=1013 width=20) (actual time=2.183..5.475 rows=960.00 loops=1)
+  Hash Cond: (o.kunde_id = k.kunde_id)
+  Buffers: shared hit=2165
+  ->  Seq Scan on ordrer o  (cost=0.00..3321.00 rows=1013 width=14) (actual time=0.583..3.728 rows=960.00 loops=1)
+        Filter: (runde_id = 5)
+        Rows Removed by Filter: 99040
+        Buffers: shared hit=2071
+  ->  Hash  (cost=194.00..194.00 rows=10000 width=14) (actual time=1.576..1.576 rows=10000.00 loops=1)
+        Buckets: 16384  Batches: 1  Memory Usage: 597kB
+        Buffers: shared hit=94
+        ->  Seq Scan on kunder k  (cost=0.00..194.00 rows=10000 width=14) (actual time=0.003..0.657 rows=10000.00 loops=1)
+              Buffers: shared hit=94
+Planning:
+  Buffers: shared hit=216
+Planning Time: 0.366 ms
+Execution Time: 5.572 ms
+Seq Scan on ordrer  (cost=0.00..3321.00 rows=1013 width=20) (actual time=0.182..3.254 rows=960.00 loops=1)
+  Filter: (runde_id = 5)
+  Rows Removed by Filter: 99040
+  Buffers: shared hit=2071
+Planning:
+  Buffers: shared hit=3
+Planning Time: 0.034 ms
+Execution Time: 3.291 ms
+Seq Scan on ordrer  (cost=0.00..3321.00 rows=1013 width=20) (actual time=0.247..2.943 rows=960.00 loops=1)
+  Filter: (runde_id = 5)
+  Rows Removed by Filter: 99040
+  Buffers: shared hit=2071
+Planning Time: 0.036 ms
+Execution Time: 2.979 ms
+Hash Join  (cost=319.00..3642.66 rows=1013 width=20) (actual time=1.785..4.851 rows=960.00 loops=1)
+  Hash Cond: (o.kunde_id = k.kunde_id)
+  Buffers: shared hit=2165
+  ->  Seq Scan on ordrer o  (cost=0.00..3321.00 rows=1013 width=14) (actual time=0.207..2.934 rows=960.00 loops=1)
+        Filter: (runde_id = 5)
+        Rows Removed by Filter: 99040
+        Buffers: shared hit=2071
+  ->  Hash  (cost=194.00..194.00 rows=10000 width=14) (actual time=1.573..1.574 rows=10000.00 loops=1)
+        Buckets: 16384  Batches: 1  Memory Usage: 597kB
+        Buffers: shared hit=94
+        ->  Seq Scan on kunder k  (cost=0.00..194.00 rows=10000 width=14) (actual time=0.003..0.664 rows=10000.00 loops=1)
+              Buffers: shared hit=94
+Planning:
+  Buffers: shared hit=13
+Planning Time: 0.123 ms
+Execution Time: 4.893 ms
+exit 0
+
+2026-11-20T10:04:27+01:00  $ docker compose -p dbsec05-c6vffng1 -f [PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/compose.json ps -a -q
+513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359
+exit 0
+
+2026-11-20T10:04:28+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 513e3c6dddd6e1b98b68e3002c3ddc8a7921107dd5f10164a1c8707c93c13359
+dbsec05-c6vffng1
+exit 0
+
+2026-11-20T10:04:28+01:00  $ docker compose -p dbsec05-c6vffng1 -f [PROJEKTMAPPE]/kontrol/dbsec05-c6vffng1/compose.json down -v --timeout 8
+ Container dbsec05-c6vffng1-postgres-1  Stopping
+ Container dbsec05-c6vffng1-postgres-1  Stopped
+ Container dbsec05-c6vffng1-postgres-1  Removing
+ Container dbsec05-c6vffng1-postgres-1  Removed
+ Volume dbsec05-c6vffng1_data  Removing
+ Network dbsec05-c6vffng1_default  Removing
+ Volume dbsec05-c6vffng1_data  Removed
+ Network dbsec05-c6vffng1_default  Removed
+exit 0
+2026-11-20T10:04:28+01:00  PASS

@@ -1,0 +1,398 @@
+
+2026-11-20T10:10:14+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json config --format json
+{
+  "name": "dbsec01-q_wu9adu",
+  "networks": {
+    "default": {
+      "name": "dbsec01-q_wu9adu_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec01-q_wu9adu_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=16MB",
+        "-c",
+        "work_mem=64kB",
+        "-c",
+        "effective_cache_size=32MB",
+        "-c",
+        "maintenance_work_mem=16MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec01-q_wu9adu_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:10:14+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json up -d
+ Network dbsec01-q_wu9adu_default  Creating
+ Network dbsec01-q_wu9adu_default  Created
+ Volume "dbsec01-q_wu9adu_data"  Creating
+ Volume "dbsec01-q_wu9adu_data"  Created
+ Container dbsec01-q_wu9adu-postgres-1  Creating
+ Container dbsec01-q_wu9adu-postgres-1  Created
+ Container dbsec01-q_wu9adu-postgres-1  Starting
+ Container dbsec01-q_wu9adu-postgres-1  Started
+exit 0
+
+2026-11-20T10:10:14+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json ps -q postgres
+dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a
+exit 0
+
+2026-11-20T10:10:16+01:00  $ docker exec dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+
+2026-11-20T10:10:16+01:00  $ docker exec -i dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a pgbench -U studie -i -s 30 studiebase
+dropping old tables...
+NOTICE:  table "pgbench_accounts" does not exist, skipping
+NOTICE:  table "pgbench_branches" does not exist, skipping
+NOTICE:  table "pgbench_history" does not exist, skipping
+NOTICE:  table "pgbench_tellers" does not exist, skipping
+creating tables...
+generating data (client-side)...
+100000 of 3000000 tuples (3%) of pgbench_accounts done (elapsed 0.06 s, remaining 1.86 s)
+200000 of 3000000 tuples (6%) of pgbench_accounts done (elapsed 0.12 s, remaining 1.69 s)
+300000 of 3000000 tuples (10%) of pgbench_accounts done (elapsed 0.20 s, remaining 1.80 s)
+400000 of 3000000 tuples (13%) of pgbench_accounts done (elapsed 0.28 s, remaining 1.81 s)
+500000 of 3000000 tuples (16%) of pgbench_accounts done (elapsed 0.33 s, remaining 1.65 s)
+600000 of 3000000 tuples (20%) of pgbench_accounts done (elapsed 0.42 s, remaining 1.67 s)
+700000 of 3000000 tuples (23%) of pgbench_accounts done (elapsed 0.50 s, remaining 1.65 s)
+800000 of 3000000 tuples (26%) of pgbench_accounts done (elapsed 0.56 s, remaining 1.55 s)
+900000 of 3000000 tuples (30%) of pgbench_accounts done (elapsed 0.66 s, remaining 1.54 s)
+1000000 of 3000000 tuples (33%) of pgbench_accounts done (elapsed 0.75 s, remaining 1.50 s)
+1100000 of 3000000 tuples (36%) of pgbench_accounts done (elapsed 0.81 s, remaining 1.39 s)
+1200000 of 3000000 tuples (40%) of pgbench_accounts done (elapsed 0.89 s, remaining 1.33 s)
+1300000 of 3000000 tuples (43%) of pgbench_accounts done (elapsed 0.96 s, remaining 1.26 s)
+1400000 of 3000000 tuples (46%) of pgbench_accounts done (elapsed 1.02 s, remaining 1.17 s)
+1500000 of 3000000 tuples (50%) of pgbench_accounts done (elapsed 1.10 s, remaining 1.10 s)
+1600000 of 3000000 tuples (53%) of pgbench_accounts done (elapsed 1.17 s, remaining 1.02 s)
+1700000 of 3000000 tuples (56%) of pgbench_accounts done (elapsed 1.24 s, remaining 0.95 s)
+1800000 of 3000000 tuples (60%) of pgbench_accounts done (elapsed 1.32 s, remaining 0.88 s)
+1900000 of 3000000 tuples (63%) of pgbench_accounts done (elapsed 1.38 s, remaining 0.80 s)
+2000000 of 3000000 tuples (66%) of pgbench_accounts done (elapsed 1.46 s, remaining 0.73 s)
+2100000 of 3000000 tuples (70%) of pgbench_accounts done (elapsed 1.54 s, remaining 0.66 s)
+2200000 of 3000000 tuples (73%) of pgbench_accounts done (elapsed 1.60 s, remaining 0.58 s)
+2300000 of 3000000 tuples (76%) of pgbench_accounts done (elapsed 1.68 s, remaining 0.51 s)
+2400000 of 3000000 tuples (80%) of pgbench_accounts done (elapsed 1.76 s, remaining 0.44 s)
+2500000 of 3000000 tuples (83%) of pgbench_accounts done (elapsed 1.82 s, remaining 0.36 s)
+2600000 of 3000000 tuples (86%) of pgbench_accounts done (elapsed 1.91 s, remaining 0.29 s)
+2700000 of 3000000 tuples (90%) of pgbench_accounts done (elapsed 1.99 s, remaining 0.22 s)
+2800000 of 3000000 tuples (93%) of pgbench_accounts done (elapsed 2.05 s, remaining 0.15 s)
+2900000 of 3000000 tuples (96%) of pgbench_accounts done (elapsed 2.13 s, remaining 0.07 s)
+3000000 of 3000000 tuples (100%) of pgbench_accounts done (elapsed 3.61 s, remaining 0.00 s)
+vacuuming...
+creating primary keys...
+done in 6.06 s (drop tables 0.00 s, create tables 0.00 s, client-side generate 4.25 s, vacuum 0.45 s, primary keys 1.36 s).
+exit 0
+SQL
+SELECT count(*),pg_size_pretty(pg_total_relation_size('pgbench_accounts')) FROM pgbench_accounts;
+
+2026-11-20T10:10:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+3000000|449 MB
+exit 0
+SQL
+SHOW shared_buffers;
+SHOW work_mem;
+SHOW effective_cache_size;
+SHOW maintenance_work_mem;
+
+2026-11-20T10:10:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+16MB
+64kB
+32MB
+16MB
+exit 0
+
+2026-11-20T10:10:22+01:00  $ docker exec -i dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a pgbench -U studie -c 4 -T 30 studiebase
+pgbench (18.7 (Debian 18.7-1.pgdg13+5))
+starting vacuum...end.
+transaction type: <builtin: TPC-B (sort of)>
+scaling factor: 30
+query mode: simple
+number of clients: 4
+number of threads: 1
+maximum number of tries: 1
+duration: 30 s
+number of transactions actually processed: 133272
+number of failed transactions: 0 (0.000%)
+latency average = 0.900 ms
+initial connection time = 5.155 ms
+tps = 4442.922340 (without initial connection time)
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT aid, abalance FROM pgbench_accounts ORDER BY abalance DESC;
+
+2026-11-20T10:10:52+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' dd60047e4beb0b7533ed6e6a6657738c35d33996ff94b6da29f32b76835d1b4a psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Gather Merge  (cost=261757.12..616584.25 rows=3046603 width=8) (actual time=1328.889..1711.102 rows=3000000.00 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=90 read=49929 dirtied=46038 written=44555, temp read=26450 written=28646
+  ->  Sort  (cost=260757.10..263930.64 rows=1269418 width=8) (actual time=1314.791..1385.119 rows=1000000.00 loops=3)
+        Sort Key: abalance DESC
+        Sort Method: external merge  Disk: 17592kB
+        Buffers: shared hit=90 read=49929 dirtied=46038 written=44555, temp read=26450 written=28646
+        Worker 0:  Sort Method: external merge  Disk: 17960kB
+        Worker 1:  Sort Method: external merge  Disk: 17448kB
+        ->  Parallel Seq Scan on pgbench_accounts  (cost=0.00..62639.18 rows=1269418 width=8) (actual time=93.371..978.541 rows=1000000.00 loops=3)
+              Buffers: shared hit=16 read=49929 dirtied=46038 written=44555
+Planning:
+  Buffers: shared hit=49 read=18
+Planning Time: 0.415 ms
+JIT:
+  Functions: 6
+  Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Timing: Generation 0.274 ms (Deform 0.118 ms), Inlining 201.694 ms, Optimization 44.014 ms, Emission 33.898 ms, Total 279.881 ms
+Execution Time: 1838.532 ms
+exit 0
+
+2026-11-20T10:10:54+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json config --format json
+{
+  "name": "dbsec01-q_wu9adu",
+  "networks": {
+    "default": {
+      "name": "dbsec01-q_wu9adu_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec01-q_wu9adu_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=512MB",
+        "-c",
+        "work_mem=64MB",
+        "-c",
+        "effective_cache_size=2GB",
+        "-c",
+        "maintenance_work_mem=256MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec01-q_wu9adu_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:10:55+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json up -d
+ Container dbsec01-q_wu9adu-postgres-1  Recreate
+ Container dbsec01-q_wu9adu-postgres-1  Recreated
+ Container dbsec01-q_wu9adu-postgres-1  Starting
+ Container dbsec01-q_wu9adu-postgres-1  Started
+exit 0
+
+2026-11-20T10:10:55+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json ps -q postgres
+0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7
+exit 0
+
+2026-11-20T10:10:56+01:00  $ docker exec 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SHOW shared_buffers;
+SHOW work_mem;
+SHOW effective_cache_size;
+SHOW maintenance_work_mem;
+
+2026-11-20T10:10:56+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+512MB
+64MB
+2GB
+256MB
+exit 0
+
+2026-11-20T10:10:56+01:00  $ docker exec -i 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 pgbench -U studie -c 4 -T 30 studiebase
+pgbench (18.7 (Debian 18.7-1.pgdg13+5))
+starting vacuum...end.
+transaction type: <builtin: TPC-B (sort of)>
+scaling factor: 30
+query mode: simple
+number of clients: 4
+number of threads: 1
+maximum number of tries: 1
+duration: 30 s
+number of transactions actually processed: 145683
+number of failed transactions: 0 (0.000%)
+latency average = 0.824 ms
+initial connection time = 4.835 ms
+tps = 4856.678592 (without initial connection time)
+exit 0
+TPS-ændring 9.31 %
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT aid, abalance FROM pgbench_accounts ORDER BY abalance DESC;
+
+2026-11-20T10:11:26+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Sort  (cost=450696.64..458321.68 rows=3050019 width=8) (actual time=1239.089..1429.741 rows=3000000.00 loops=1)
+  Sort Key: abalance DESC
+  Sort Method: external merge  Disk: 52856kB
+  Buffers: shared hit=47478 read=2526, temp read=6607 written=6609
+  ->  Seq Scan on pgbench_accounts  (cost=0.00..80501.19 rows=3050019 width=8) (actual time=12.037..815.192 rows=3000000.00 loops=1)
+        Buffers: shared hit=47475 read=2526
+Planning:
+  Buffers: shared hit=67
+Planning Time: 0.416 ms
+JIT:
+  Functions: 2
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 0.141 ms (Deform 0.059 ms), Inlining 0.000 ms, Optimization 0.497 ms, Emission 11.455 ms, Total 12.092 ms
+Execution Time: 1554.679 ms
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT aid, abalance FROM pgbench_accounts ORDER BY abalance DESC LIMIT 10;
+
+2026-11-20T10:11:27+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Limit  (cost=91171.85..91173.02 rows=10 width=8) (actual time=266.079..271.240 rows=10.00 loops=1)
+  Buffers: shared hit=47837 read=2238
+  ->  Gather Merge  (cost=91171.85..446396.71 rows=3050018 width=8) (actual time=266.078..271.237 rows=10.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=47837 read=2238
+        ->  Sort  (cost=90171.83..93348.93 rows=1270841 width=8) (actual time=264.206..264.207 rows=8.33 loops=3)
+              Sort Key: abalance DESC
+              Sort Method: top-N heapsort  Memory: 25kB
+              Buffers: shared hit=47837 read=2238
+              Worker 0:  Sort Method: top-N heapsort  Memory: 25kB
+              Worker 1:  Sort Method: top-N heapsort  Memory: 25kB
+              ->  Parallel Seq Scan on pgbench_accounts  (cost=0.00..62709.41 rows=1270841 width=8) (actual time=0.046..200.885 rows=1000000.00 loops=3)
+                    Buffers: shared hit=47763 read=2238
+Planning:
+  Buffers: shared hit=67
+Planning Time: 0.189 ms
+Execution Time: 271.305 ms
+exit 0
+
+2026-11-20T10:11:28+01:00  $ docker exec -u postgres 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 bash -ec 'd=$(mktemp -d); initdb -D "$d" --no-sync >/dev/null; ulimit -v 393216; exec postgres -D "$d" -c shared_buffers=8GB -c huge_pages=off -c port=5544'
+initdb: warning: enabling "trust" authentication for local connections
+initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-11-20 09:11:28.682 UTC [90] FATAL:  could not map anonymous shared memory: Cannot allocate memory
+2026-11-20 09:11:28.682 UTC [90] HINT:  This error usually means that PostgreSQL's request for a shared memory segment exceeded available memory, swap space, or huge pages. To reduce the request size (currently 8852455424 bytes), reduce PostgreSQL's shared memory usage, perhaps by reducing "shared_buffers" or "max_connections".
+2026-11-20 09:11:28.682 UTC [90] LOG:  database system is shut down
+exit 1
+Bekræftet forventet afvisning / could not map anonymous shared memory|Cannot allocate memory
+SQL
+SELECT current_setting('shared_buffers'), count(*) FROM pgbench_accounts;
+
+2026-11-20T10:11:28+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+512MB|3000000
+exit 0
+
+2026-11-20T10:11:29+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json ps -a -q
+0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7
+exit 0
+
+2026-11-20T10:11:29+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 0ff5cab1c231c40f3c840c41ab3d6388bc1cf0efd9001408d458818a62b965b7
+dbsec01-q_wu9adu
+exit 0
+
+2026-11-20T10:11:29+01:00  $ docker compose -p dbsec01-q_wu9adu -f [PROJEKTMAPPE]/kontrol/dbsec01-q_wu9adu/compose.json down -v --timeout 8
+ Container dbsec01-q_wu9adu-postgres-1  Stopping
+ Container dbsec01-q_wu9adu-postgres-1  Stopped
+ Container dbsec01-q_wu9adu-postgres-1  Removing
+ Container dbsec01-q_wu9adu-postgres-1  Removed
+ Volume dbsec01-q_wu9adu_data  Removing
+ Network dbsec01-q_wu9adu_default  Removing
+ Volume dbsec01-q_wu9adu_data  Removed
+ Network dbsec01-q_wu9adu_default  Removed
+exit 0
+2026-11-20T10:11:30+01:00  PASS

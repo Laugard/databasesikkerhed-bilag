@@ -1,0 +1,181 @@
+
+2026-11-20T10:07:22+01:00  $ docker compose -p dbsec11-nh27rcnt -f [PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/compose.json config --format json
+{
+  "name": "dbsec11-nh27rcnt",
+  "networks": {
+    "default": {
+      "name": "dbsec11-nh27rcnt_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec11-nh27rcnt_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec11-nh27rcnt_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:07:22+01:00  $ docker compose -p dbsec11-nh27rcnt -f [PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/compose.json up -d
+ Network dbsec11-nh27rcnt_default  Creating
+ Network dbsec11-nh27rcnt_default  Created
+ Volume "dbsec11-nh27rcnt_data"  Creating
+ Volume "dbsec11-nh27rcnt_data"  Created
+ Container dbsec11-nh27rcnt-postgres-1  Creating
+ Container dbsec11-nh27rcnt-postgres-1  Created
+ Container dbsec11-nh27rcnt-postgres-1  Starting
+ Container dbsec11-nh27rcnt-postgres-1  Started
+exit 0
+
+2026-11-20T10:07:22+01:00  $ docker compose -p dbsec11-nh27rcnt -f [PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/compose.json ps -q postgres
+ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6
+exit 0
+
+2026-11-20T10:07:24+01:00  $ docker exec ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT extname,extversion FROM pg_extension WHERE extname='pgcrypto';
+
+2026-11-20T10:07:24+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+pgcrypto|1.4
+exit 0
+SQL
+SELECT brugernavn,pg_typeof(cpr_krypteret),octet_length(cpr_krypteret),
+ left(encode(cpr_krypteret,'hex'),16) AS binaer_praefiks
+ FROM brugere_krypteret ORDER BY id LIMIT 3;
+
+2026-11-20T10:07:24+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+bruger1|bytea|115|c30d04070302f136
+bruger2|bytea|115|c30d040703028c1c
+bruger3|bytea|115|c30d04070302a781
+exit 0
+SQL
+SELECT id,brugernavn,length(pgp_sym_decrypt(cpr_krypteret,'[udeladt]')),length('[udeladt]'),
+ starts_with(pgp_sym_decrypt(cpr_krypteret,'[udeladt]'),'[udeladt]'),
+ pgp_sym_decrypt(cpr_krypteret,'[udeladt]')=('[udeladt]' || substring(brugernavn from 7)) AS matcher_brugernavn
+ FROM brugere_krypteret ORDER BY id LIMIT 3;
+
+2026-11-20T10:07:24+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+1|bruger1|49|48|t|t
+2|bruger2|49|48|t|t
+3|bruger3|49|48|t|t
+exit 0
+SQL
+SELECT count(*),bool_and(pgp_sym_decrypt(cpr_krypteret,'[udeladt]')=('[udeladt]'||substring(brugernavn from 7))) FROM brugere_krypteret;
+SELECT pgp_sym_encrypt('[udeladt]','[udeladt]')<>pgp_sym_encrypt('[udeladt]','[udeladt]');
+
+2026-11-20T10:07:25+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+100|t
+t
+exit 0
+SQL
+SELECT pgp_sym_decrypt(cpr_krypteret,'[udeladt]') FROM brugere_krypteret LIMIT 1;
+
+2026-11-20T10:07:25+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ERROR:  39000: Wrong key or corrupt data
+LOCATION:  px_THROW_ERROR, px.c:105
+exit 3
+Bekræftet forventet afvisning / 39000.*Wrong key or corrupt data
+SQL
+SELECT length(kodehash),left(kodehash,2),crypt('[udeladt]1',kodehash)=kodehash,
+ crypt('[udeladt]',kodehash)=kodehash FROM brugere_krypteret WHERE brugernavn='bruger1';
+
+2026-11-20T10:07:25+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+60|$2|t|f
+exit 0
+SQL
+EXPLAIN (ANALYZE,BUFFERS) SELECT count(*) FROM brugere_krypteret WHERE pgp_sym_decrypt(cpr_krypteret,'[udeladt]')='[udeladt]'||'1';
+SELECT count(*) FROM brugere_krypteret WHERE pgp_sym_decrypt(cpr_krypteret,'[udeladt]')='[udeladt]'||'1';
+
+2026-11-20T10:07:25+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Aggregate  (cost=4.50..4.51 rows=1 width=8) (actual time=16.847..16.848 rows=1.00 loops=1)
+  Buffers: shared hit=3
+  ->  Seq Scan on brugere_krypteret  (cost=0.00..4.50 rows=1 width=0) (actual time=0.320..16.843 rows=1.00 loops=1)
+        Filter: (pgp_sym_decrypt(cpr_krypteret, '[udeladt]'::text) = '[udeladt]1'::text)
+        Rows Removed by Filter: 99
+        Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=59
+Planning Time: 0.146 ms
+Execution Time: 17.078 ms
+1
+exit 0
+
+2026-11-20T10:07:25+01:00  $ docker compose -p dbsec11-nh27rcnt -f [PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/compose.json ps -a -q
+ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6
+exit 0
+
+2026-11-20T10:07:25+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' ce08701c8bcaf0b2634545a9c90aa2c5d843120c33d19f427fbc3a82edfe08d6
+dbsec11-nh27rcnt
+exit 0
+
+2026-11-20T10:07:25+01:00  $ docker compose -p dbsec11-nh27rcnt -f [PROJEKTMAPPE]/kontrol/dbsec11-nh27rcnt/compose.json down -v --timeout 8
+ Container dbsec11-nh27rcnt-postgres-1  Stopping
+ Container dbsec11-nh27rcnt-postgres-1  Stopped
+ Container dbsec11-nh27rcnt-postgres-1  Removing
+ Container dbsec11-nh27rcnt-postgres-1  Removed
+ Volume dbsec11-nh27rcnt_data  Removing
+ Network dbsec11-nh27rcnt_default  Removing
+ Volume dbsec11-nh27rcnt_data  Removed
+ Network dbsec11-nh27rcnt_default  Removed
+exit 0
+2026-11-20T10:07:25+01:00  PASS

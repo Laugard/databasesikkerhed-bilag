@@ -1,0 +1,24 @@
+2026-11-20T09:19:06.940308+00:00
+$ python kontrol/slutkontrol.py
+PDF blev åbnet med pypdf. Ti A4-sider.
+Markdown og PDF har samme indholdsord på side 1 [{}]
+Markdown og PDF har samme indholdsord på side 2 [{}]
+Markdown og PDF har samme indholdsord på side 3 [{}]
+Markdown og PDF har samme indholdsord på side 4 [{}]
+Markdown og PDF har samme indholdsord på side 5 [{}]
+Markdown og PDF har samme indholdsord på side 6 [{}]
+Markdown og PDF har samme indholdsord på side 7 [{}]
+Markdown og PDF har samme indholdsord på side 8 [{}]
+Markdown og PDF har samme indholdsord på side 9 [{}]
+Markdown og PDF har samme indholdsord på side 10 [{}]
+17 lokale PDF-linkfelter peger på eksisterende filer.
+Alle teksttegn ligger inden for sider og ydre margener, kontrolleret med pdfplumber.
+Alle lokale links i Markdown-filerne har et eksisterende mål.
+40 nummererede refleksionsspørgsmål har svar. Påstanden anført som punkt 0 i øvelse 08 er også behandlet i rolletabellen.
+13 PASS, 0 PARTIAL, 0 BLOCKED, 0 NOT RUN i de endelige resultater. Tidlige forsøg i øvelse 11 er bevaret særskilt.
+Docker efter sidste gentest har samme fem containere, fire netværk og ti volumener som før første test. Ejerkontroller og projektvis nedlukning findes i hver log.
+Underviserens Git-arbejdstræ er rent.
+Hele afleveringsmappen inklusive PDF-tekst er undersøgt for kendte øvelseskoder/nøgler, ukrypterede CPR-formater, private nøgleblokke, bcrypt/SCRAM-verifiere og formatet for genererede laboratoriehemmeligheder. Ingen fund.
+Alle ti sider blev gengivet som billeder. Ingen visuelle afskæringer blev fundet ved gennemgangen.
+SHA-256 (PDF) eac58f1f48254e73145ab972a6e4f438464a1f5feb37af123e9a00bb79fc90f8
+exit 0

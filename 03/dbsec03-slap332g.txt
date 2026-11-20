@@ -1,0 +1,320 @@
+
+2026-11-20T10:04:04+01:00  $ docker compose -p dbsec03-slap332g -f [PROJEKTMAPPE]/kontrol/dbsec03-slap332g/compose.json config --format json
+{
+  "name": "dbsec03-slap332g",
+  "networks": {
+    "default": {
+      "name": "dbsec03-slap332g_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec03-slap332g_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec03-slap332g/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec03-slap332g/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec03-slap332g_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:04:04+01:00  $ docker compose -p dbsec03-slap332g -f [PROJEKTMAPPE]/kontrol/dbsec03-slap332g/compose.json up -d
+ Network dbsec03-slap332g_default  Creating
+ Network dbsec03-slap332g_default  Created
+ Volume "dbsec03-slap332g_data"  Creating
+ Volume "dbsec03-slap332g_data"  Created
+ Container dbsec03-slap332g-postgres-1  Creating
+ Container dbsec03-slap332g-postgres-1  Created
+ Container dbsec03-slap332g-postgres-1  Starting
+ Container dbsec03-slap332g-postgres-1  Started
+exit 0
+
+2026-11-20T10:04:05+01:00  $ docker compose -p dbsec03-slap332g -f [PROJEKTMAPPE]/kontrol/dbsec03-slap332g/compose.json ps -q postgres
+adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1
+exit 0
+
+2026-11-20T10:04:12+01:00  $ docker exec adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT (SELECT count(*) FROM forfattere),(SELECT count(*) FROM boeger),(SELECT count(*) FROM laan);
+
+2026-11-20T10:04:12+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+10000|100000|1000000
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM laan WHERE extract(year FROM laan_dato)=2023;
+
+2026-11-20T10:04:12+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Gather  (cost=1000.00..16084.00 rows=5000 width=34) (actual time=0.230..47.342 rows=250281.00 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=282 read=8052
+  ->  Parallel Seq Scan on laan  (cost=0.00..14584.00 rows=2083 width=34) (actual time=0.113..39.466 rows=83427.00 loops=3)
+        Filter: (EXTRACT(year FROM laan_dato) = '2023'::numeric)
+        Rows Removed by Filter: 249906
+        Buffers: shared hit=282 read=8052
+Planning:
+  Buffers: shared hit=95 read=8
+Planning Time: 0.229 ms
+Execution Time: 55.395 ms
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT f.navn,b.titel FROM forfattere f JOIN boeger b ON b.forfatter_id=f.id WHERE f.id<=100;
+
+2026-11-20T10:04:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Hash Join  (cost=11.29..2410.90 rows=1000 width=41) (actual time=0.163..11.674 rows=1000.00 loops=1)
+  Hash Cond: (b.forfatter_id = f.id)
+  Buffers: shared hit=3 read=1137
+  ->  Seq Scan on boeger b  (cost=0.00..2137.00 rows=100000 width=31) (actual time=0.116..6.131 rows=100000.00 loops=1)
+        Buffers: shared read=1137
+  ->  Hash  (cost=10.04..10.04 rows=100 width=18) (actual time=0.031..0.035 rows=100.00 loops=1)
+        Buckets: 1024  Batches: 1  Memory Usage: 14kB
+        Buffers: shared hit=3
+        ->  Index Scan using forfattere_pkey on forfattere f  (cost=0.29..10.04 rows=100 width=18) (actual time=0.010..0.019 rows=100.00 loops=1)
+              Index Cond: (id <= 100)
+              Index Searches: 1
+              Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=225 read=12
+Planning Time: 0.487 ms
+Execution Time: 11.745 ms
+exit 0
+SQL
+BEGIN;
+SET LOCAL enable_hashjoin=off;
+SET LOCAL enable_mergejoin=off;
+EXPLAIN (ANALYZE, BUFFERS) SELECT f.navn,b.titel FROM forfattere f JOIN boeger b ON b.forfatter_id=f.id WHERE f.id<=100;
+ROLLBACK;
+
+2026-11-20T10:04:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+SET
+SET
+Nested Loop  (cost=3.50..2988.76 rows=1000 width=41) (actual time=0.031..0.557 rows=1000.00 loops=1)
+  Buffers: shared hit=1203
+  ->  Index Scan using forfattere_pkey on forfattere f  (cost=0.29..10.04 rows=100 width=18) (actual time=0.006..0.016 rows=100.00 loops=1)
+        Index Cond: (id <= 100)
+        Index Searches: 1
+        Buffers: shared hit=3
+  ->  Bitmap Heap Scan on boeger b  (cost=3.21..29.69 rows=10 width=31) (actual time=0.002..0.004 rows=10.00 loops=100)
+        Recheck Cond: (f.id = forfatter_id)
+        Heap Blocks: exact=1000
+        Buffers: shared hit=1200
+        ->  Bitmap Index Scan on idx_boeger_forfatter  (cost=0.00..3.21 rows=10 width=0) (actual time=0.001..0.001 rows=10.00 loops=100)
+              Index Cond: (forfatter_id = f.id)
+              Index Searches: 100
+              Buffers: shared hit=200
+Planning:
+  Buffers: shared hit=219
+Planning Time: 0.391 ms
+Execution Time: 0.625 ms
+ROLLBACK
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM laan l JOIN boeger b ON b.id=l.bog_id WHERE l.laan_dato>'2023-01-01';
+
+2026-11-20T10:04:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Finalize Aggregate  (cost=16463.01..16463.02 rows=1 width=8) (actual time=56.722..58.370 rows=1.00 loops=1)
+  Buffers: shared hit=1702 read=7993
+  ->  Gather  (cost=16462.79..16463.00 rows=2 width=8) (actual time=56.361..58.365 rows=3.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=1702 read=7993
+        ->  Partial Aggregate  (cost=15462.79..15462.80 rows=1 width=8) (actual time=55.132..55.134 rows=1.00 loops=3)
+              Buffers: shared hit=1702 read=7993
+              ->  Parallel Hash Join  (cost=5291.68..15202.21 rows=104232 width=0) (actual time=16.008..51.865 rows=83313.00 loops=3)
+                    Hash Cond: (l.bog_id = b.id)
+                    Buffers: shared hit=1702 read=7993
+                    ->  Parallel Bitmap Heap Scan on laan l  (cost=2831.15..12468.06 rows=104232 width=4) (actual time=7.805..21.329 rows=83313.00 loops=3)
+                          Recheck Cond: (laan_dato > '2023-01-01 00:00:00'::timestamp without time zone)
+                          Heap Blocks: exact=2779
+                          Buffers: shared hit=565 read=7993
+                          Worker 0:  Heap Blocks: exact=2812
+                          Worker 1:  Heap Blocks: exact=2743
+                          ->  Bitmap Index Scan on idx_laan_laan_dato  (cost=0.00..2768.61 rows=250158 width=0) (actual time=6.874..6.874 rows=249939.00 loops=1)
+                                Index Cond: (laan_dato > '2023-01-01 00:00:00'::timestamp without time zone)
+                                Index Searches: 1
+                                Buffers: shared hit=1 read=223
+                    ->  Parallel Hash  (cost=1725.24..1725.24 rows=58824 width=4) (actual time=7.955..7.956 rows=33333.33 loops=3)
+                          Buckets: 131072  Batches: 1  Memory Usage: 4992kB
+                          Buffers: shared hit=1137
+                          ->  Parallel Seq Scan on boeger b  (cost=0.00..1725.24 rows=58824 width=4) (actual time=0.006..2.378 rows=33333.33 loops=3)
+                                Buffers: shared hit=1137
+Planning:
+  Buffers: shared hit=287 read=10
+Planning Time: 0.520 ms
+Execution Time: 58.420 ms
+exit 0
+SQL
+BEGIN;
+SET LOCAL work_mem='64kB';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM laan ORDER BY laaner_id,bog_id;
+ROLLBACK;
+
+2026-11-20T10:04:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+SET
+Gather Merge  (cost=97977.50..214443.98 rows=1000000 width=34) (actual time=224.966..379.678 rows=1000000.00 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=8408, temp read=23523 written=24887
+  ->  Sort  (cost=96977.48..98019.15 rows=416667 width=34) (actual time=194.557..230.737 rows=333333.33 loops=3)
+        Sort Key: laaner_id, bog_id
+        Sort Method: external merge  Disk: 16024kB
+        Buffers: shared hit=8408, temp read=23523 written=24887
+        Worker 0:  Sort Method: external merge  Disk: 15408kB
+        Worker 1:  Sort Method: external merge  Disk: 15736kB
+        ->  Parallel Seq Scan on laan  (cost=0.00..12500.67 rows=416667 width=34) (actual time=0.007..18.635 rows=333333.33 loops=3)
+              Buffers: shared hit=8334
+Planning:
+  Buffers: shared hit=121
+Planning Time: 0.194 ms
+Execution Time: 412.649 ms
+ROLLBACK
+exit 0
+SQL
+BEGIN;
+SET LOCAL work_mem='64kB';
+SET LOCAL enable_hashjoin=off;
+SET LOCAL enable_nestloop=off;
+EXPLAIN (ANALYZE, BUFFERS) SELECT f.navn,b.titel FROM forfattere f JOIN boeger b ON b.forfatter_id=f.id;
+ROLLBACK;
+SHOW enable_hashjoin;
+SHOW enable_nestloop;
+SHOW work_mem;
+
+2026-11-20T10:04:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+BEGIN
+SET
+SET
+SET
+Merge Join  (cost=0.58..8100.08 rows=100000 width=41) (actual time=0.017..28.969 rows=100000.00 loops=1)
+  Merge Cond: (f.id = b.forfatter_id)
+  Buffers: shared hit=100195 read=26
+  ->  Index Scan using forfattere_pkey on forfattere f  (cost=0.29..349.29 rows=10000 width=18) (actual time=0.004..1.280 rows=10000.00 loops=1)
+        Index Searches: 1
+        Buffers: shared hit=79 read=26
+  ->  Index Scan using idx_boeger_forfatter on boeger b  (cost=0.29..6481.36 rows=100000 width=31) (actual time=0.007..17.176 rows=100000.00 loops=1)
+        Index Searches: 1
+        Buffers: shared hit=100116
+Planning:
+  Buffers: shared hit=240
+Planning Time: 0.434 ms
+Execution Time: 31.868 ms
+ROLLBACK
+on
+on
+4MB
+exit 0
+SQL
+EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM laan l JOIN boeger b ON b.id=l.bog_id WHERE l.laan_dato>'2023-01-01';
+
+2026-11-20T10:04:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Finalize Aggregate  (cost=16463.01..16463.02 rows=1 width=8) (actual time=56.750..60.553 rows=1.00 loops=1)
+  Buffers: shared hit=9695
+  ->  Gather  (cost=16462.79..16463.00 rows=2 width=8) (actual time=56.451..60.548 rows=3.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=9695
+        ->  Partial Aggregate  (cost=15462.79..15462.80 rows=1 width=8) (actual time=54.879..54.881 rows=1.00 loops=3)
+              Buffers: shared hit=9695
+              ->  Parallel Hash Join  (cost=5291.68..15202.21 rows=104232 width=0) (actual time=16.285..51.695 rows=83313.00 loops=3)
+                    Hash Cond: (l.bog_id = b.id)
+                    Buffers: shared hit=9695
+                    ->  Parallel Bitmap Heap Scan on laan l  (cost=2831.15..12468.06 rows=104232 width=4) (actual time=7.604..21.132 rows=83313.00 loops=3)
+                          Recheck Cond: (laan_dato > '2023-01-01 00:00:00'::timestamp without time zone)
+                          Heap Blocks: exact=2807
+                          Buffers: shared hit=8558
+                          Worker 0:  Heap Blocks: exact=2751
+                          Worker 1:  Heap Blocks: exact=2776
+                          ->  Bitmap Index Scan on idx_laan_laan_dato  (cost=0.00..2768.61 rows=250158 width=0) (actual time=6.688..6.688 rows=249939.00 loops=1)
+                                Index Cond: (laan_dato > '2023-01-01 00:00:00'::timestamp without time zone)
+                                Index Searches: 1
+                                Buffers: shared hit=224
+                    ->  Parallel Hash  (cost=1725.24..1725.24 rows=58824 width=4) (actual time=8.501..8.502 rows=33333.33 loops=3)
+                          Buckets: 131072  Batches: 1  Memory Usage: 4960kB
+                          Buffers: shared hit=1137
+                          ->  Parallel Seq Scan on boeger b  (cost=0.00..1725.24 rows=58824 width=4) (actual time=0.004..2.629 rows=33333.33 loops=3)
+                                Buffers: shared hit=1137
+Planning:
+  Buffers: shared hit=297
+Planning Time: 0.539 ms
+Execution Time: 60.609 ms
+exit 0
+
+2026-11-20T10:04:14+01:00  $ docker compose -p dbsec03-slap332g -f [PROJEKTMAPPE]/kontrol/dbsec03-slap332g/compose.json ps -a -q
+adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1
+exit 0
+
+2026-11-20T10:04:14+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' adb8bd9e19c3305abdc4ea415ff3ff18777af3e938f1385a18c827ffd838dcd1
+dbsec03-slap332g
+exit 0
+
+2026-11-20T10:04:14+01:00  $ docker compose -p dbsec03-slap332g -f [PROJEKTMAPPE]/kontrol/dbsec03-slap332g/compose.json down -v --timeout 8
+ Container dbsec03-slap332g-postgres-1  Stopping
+ Container dbsec03-slap332g-postgres-1  Stopped
+ Container dbsec03-slap332g-postgres-1  Removing
+ Container dbsec03-slap332g-postgres-1  Removed
+ Volume dbsec03-slap332g_data  Removing
+ Network dbsec03-slap332g_default  Removing
+ Volume dbsec03-slap332g_data  Removed
+ Network dbsec03-slap332g_default  Removed
+exit 0
+2026-11-20T10:04:14+01:00  PASS

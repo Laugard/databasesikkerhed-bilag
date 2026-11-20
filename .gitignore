@@ -1,0 +1,27 @@
+# Lokale hemmeligheder
+.env
+.env.*
+secrets/
+certs/
+*.pem
+*.key
+*.p12
+*.pfx
+*.pass
+.pgpass
+*password*.txt
+# Databaser, kildekopi og arkiver
+kontrol/
+kilde/
+facit/
+backup/
+archive/
+pgdata/
+*.dump
+*.tar*
+*.pdf
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+node_modules/

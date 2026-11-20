@@ -1,0 +1,275 @@
+
+2026-11-20T10:03:52+01:00  $ docker compose -p dbsec02-qf571e50 -f [PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/compose.json config --format json
+{
+  "name": "dbsec02-qf571e50",
+  "networks": {
+    "default": {
+      "name": "dbsec02-qf571e50_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec02-qf571e50_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec02-qf571e50_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:03:52+01:00  $ docker compose -p dbsec02-qf571e50 -f [PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/compose.json up -d
+ Network dbsec02-qf571e50_default  Creating
+ Network dbsec02-qf571e50_default  Created
+ Volume "dbsec02-qf571e50_data"  Creating
+ Volume "dbsec02-qf571e50_data"  Created
+ Container dbsec02-qf571e50-postgres-1  Creating
+ Container dbsec02-qf571e50-postgres-1  Created
+ Container dbsec02-qf571e50-postgres-1  Starting
+ Container dbsec02-qf571e50-postgres-1  Started
+exit 0
+
+2026-11-20T10:03:52+01:00  $ docker compose -p dbsec02-qf571e50 -f [PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/compose.json ps -q postgres
+51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad
+exit 0
+
+2026-11-20T10:04:03+01:00  $ docker exec 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT status,count(*) FROM kunder GROUP BY status ORDER BY count(*) DESC;
+
+2026-11-20T10:04:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+aktiv|900000
+inaktiv|100000
+exit 0
+SQL
+SELECT count(*) FROM pg_stats WHERE tablename='kunder';
+
+2026-11-20T10:04:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+0
+exit 0
+SQL
+\timing on
+SELECT count(*) FROM kunder WHERE status='inaktiv';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+SELECT count(*) FROM kunder WHERE status='inaktiv';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+SELECT count(*) FROM kunder WHERE status='inaktiv';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+
+
+2026-11-20T10:04:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Timing is on.
+100000
+Time: 4.074 ms
+Bitmap Heap Scan on kunder  (cost=4.68..101.68 rows=25 width=560) (actual time=0.582..4.077 rows=16667.00 loops=1)
+  Recheck Cond: (((status)::text = 'inaktiv'::text) AND ((aldersgruppe)::text = '30-40'::text))
+  Heap Blocks: exact=1236
+  Buffers: shared read=1252
+  ->  Bitmap Index Scan on idx_kunder_status_aldersgruppe  (cost=0.00..4.67 rows=25 width=0) (actual time=0.379..0.379 rows=16667.00 loops=1)
+        Index Cond: (((status)::text = 'inaktiv'::text) AND ((aldersgruppe)::text = '30-40'::text))
+        Index Searches: 1
+        Buffers: shared read=16
+Planning:
+  Buffers: shared hit=12
+Planning Time: 0.038 ms
+Execution Time: 4.572 ms
+Time: 4.840 ms
+100000
+Time: 3.345 ms
+Bitmap Heap Scan on kunder  (cost=4.68..101.68 rows=25 width=560) (actual time=0.420..2.985 rows=16667.00 loops=1)
+  Recheck Cond: (((status)::text = 'inaktiv'::text) AND ((aldersgruppe)::text = '30-40'::text))
+  Heap Blocks: exact=1236
+  Buffers: shared hit=1252
+  ->  Bitmap Index Scan on idx_kunder_status_aldersgruppe  (cost=0.00..4.67 rows=25 width=0) (actual time=0.323..0.323 rows=16667.00 loops=1)
+        Index Cond: (((status)::text = 'inaktiv'::text) AND ((aldersgruppe)::text = '30-40'::text))
+        Index Searches: 1
+        Buffers: shared hit=16
+Planning Time: 0.028 ms
+Execution Time: 3.469 ms
+Time: 3.633 ms
+100000
+Time: 3.151 ms
+Bitmap Heap Scan on kunder  (cost=4.68..101.68 rows=25 width=560) (actual time=0.352..1.917 rows=16667.00 loops=1)
+  Recheck Cond: (((status)::text = 'inaktiv'::text) AND ((aldersgruppe)::text = '30-40'::text))
+  Heap Blocks: exact=1236
+  Buffers: shared hit=1252
+  ->  Bitmap Index Scan on idx_kunder_status_aldersgruppe  (cost=0.00..4.67 rows=25 width=0) (actual time=0.263..0.263 rows=16667.00 loops=1)
+        Index Cond: (((status)::text = 'inaktiv'::text) AND ((aldersgruppe)::text = '30-40'::text))
+        Index Searches: 1
+        Buffers: shared hit=16
+Planning Time: 0.021 ms
+Execution Time: 2.390 ms
+Time: 2.534 ms
+exit 0
+SQL
+ANALYZE kunder;
+SELECT attname,n_distinct,most_common_vals,most_common_freqs FROM pg_stats WHERE tablename='kunder' AND attname IN ('status','aldersgruppe') ORDER BY attname;
+
+2026-11-20T10:04:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ANALYZE
+aldersgruppe|6|{30-40,41-50,65+,18-25,51-65,26-35}|{0.16893333,0.1683,0.1683,0.16693333,0.1659,0.16163333}
+status|2|{aktiv,inaktiv}|{0.9027,0.0973}
+exit 0
+SQL
+\timing on
+SELECT count(*) FROM kunder WHERE status='inaktiv';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+SELECT count(*) FROM kunder WHERE status='inaktiv';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+SELECT count(*) FROM kunder WHERE status='inaktiv';
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+
+
+2026-11-20T10:04:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Timing is on.
+100000
+Time: 3.829 ms
+Index Scan using idx_kunder_status on kunder  (cost=0.42..3459.43 rows=16437 width=64) (actual time=0.014..8.439 rows=16667.00 loops=1)
+  Index Cond: ((status)::text = 'inaktiv'::text)
+  Filter: ((aldersgruppe)::text = '30-40'::text)
+  Rows Removed by Filter: 83333
+  Index Searches: 1
+  Buffers: shared hit=1317
+Planning:
+  Buffers: shared hit=18
+Planning Time: 0.043 ms
+Execution Time: 9.027 ms
+Time: 9.249 ms
+100000
+Time: 3.157 ms
+Index Scan using idx_kunder_status on kunder  (cost=0.42..3459.43 rows=16437 width=64) (actual time=0.007..7.744 rows=16667.00 loops=1)
+  Index Cond: ((status)::text = 'inaktiv'::text)
+  Filter: ((aldersgruppe)::text = '30-40'::text)
+  Rows Removed by Filter: 83333
+  Index Searches: 1
+  Buffers: shared hit=1317
+Planning Time: 0.028 ms
+Execution Time: 8.345 ms
+Time: 8.516 ms
+100000
+Time: 3.346 ms
+Index Scan using idx_kunder_status on kunder  (cost=0.42..3459.43 rows=16437 width=64) (actual time=0.024..8.314 rows=16667.00 loops=1)
+  Index Cond: ((status)::text = 'inaktiv'::text)
+  Filter: ((aldersgruppe)::text = '30-40'::text)
+  Rows Removed by Filter: 83333
+  Index Searches: 1
+  Buffers: shared hit=1317
+Planning Time: 0.027 ms
+Execution Time: 8.913 ms
+Time: 9.161 ms
+exit 0
+SQL
+ALTER TABLE kunder ALTER COLUMN status SET STATISTICS 0;
+ANALYZE kunder;
+SELECT attname,n_distinct,most_common_vals,most_common_freqs FROM pg_stats WHERE tablename='kunder' AND attname IN ('status','aldersgruppe') ORDER BY attname;
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM kunder WHERE status='inaktiv' AND aldersgruppe='30-40';
+
+2026-11-20T10:04:03+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ALTER TABLE
+ANALYZE
+aldersgruppe|6|{65+,51-65,41-50,18-25,30-40,26-35}|{0.1692,0.1675,0.16746667,0.16603333,0.1654,0.1644}
+status|2|{aktiv,inaktiv}|{0.9027,0.0973}
+Index Scan using idx_kunder_status on kunder  (cost=0.42..3459.43 rows=16093 width=64) (actual time=0.017..8.265 rows=16667.00 loops=1)
+  Index Cond: ((status)::text = 'inaktiv'::text)
+  Filter: ((aldersgruppe)::text = '30-40'::text)
+  Rows Removed by Filter: 83333
+  Index Searches: 1
+  Buffers: shared hit=1317
+Planning:
+  Buffers: shared hit=44
+Planning Time: 0.050 ms
+Execution Time: 8.748 ms
+exit 0
+SQL
+ALTER TABLE kunder ALTER COLUMN status SET STATISTICS 100;
+ALTER TABLE kunder SET (autovacuum_enabled=on);
+ANALYZE kunder;
+SELECT attname,n_distinct,most_common_vals,most_common_freqs FROM pg_stats WHERE tablename='kunder' AND attname IN ('status','aldersgruppe') ORDER BY attname;
+SELECT attstattarget,reloptions FROM pg_attribute JOIN pg_class ON attrelid=pg_class.oid WHERE attrelid='kunder'::regclass AND attname='status';
+
+2026-11-20T10:04:04+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ALTER TABLE
+ALTER TABLE
+ANALYZE
+aldersgruppe|6|{65+,30-40,41-50,26-35,51-65,18-25}|{0.1684,0.16813333,0.1681,0.16633333,0.16453333,0.1645}
+status|2|{aktiv,inaktiv}|{0.9009,0.0991}
+100|{autovacuum_enabled=on}
+exit 0
+
+2026-11-20T10:04:04+01:00  $ docker compose -p dbsec02-qf571e50 -f [PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/compose.json ps -a -q
+51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad
+exit 0
+
+2026-11-20T10:04:04+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 51110e08fea7726617c6a04e83670c691a2e1357f82858df9a800fd54c9b0cad
+dbsec02-qf571e50
+exit 0
+
+2026-11-20T10:04:04+01:00  $ docker compose -p dbsec02-qf571e50 -f [PROJEKTMAPPE]/kontrol/dbsec02-qf571e50/compose.json down -v --timeout 8
+ Container dbsec02-qf571e50-postgres-1  Stopping
+ Container dbsec02-qf571e50-postgres-1  Stopped
+ Container dbsec02-qf571e50-postgres-1  Removing
+ Container dbsec02-qf571e50-postgres-1  Removed
+ Volume dbsec02-qf571e50_data  Removing
+ Network dbsec02-qf571e50_default  Removing
+ Volume dbsec02-qf571e50_data  Removed
+ Network dbsec02-qf571e50_default  Removed
+exit 0
+2026-11-20T10:04:04+01:00  PASS

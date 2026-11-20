@@ -1,0 +1,514 @@
+
+2026-11-20T10:06:18+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json config --format json
+{
+  "name": "dbsec12-ad6bgahy",
+  "networks": {
+    "default": {
+      "name": "dbsec12-ad6bgahy_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec12-ad6bgahy_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "wal_level=replica",
+        "-c",
+        "archive_mode=on",
+        "-c",
+        "archive_command=test ! -f /archive/%f \u0026\u0026 cp %p /archive/%f"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/archive",
+          "target": "/archive",
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/backup",
+          "target": "/backup",
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec12-ad6bgahy_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:06:18+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json up -d
+ Network dbsec12-ad6bgahy_default  Creating
+ Network dbsec12-ad6bgahy_default  Created
+ Volume "dbsec12-ad6bgahy_data"  Creating
+ Volume "dbsec12-ad6bgahy_data"  Created
+ Container dbsec12-ad6bgahy-postgres-1  Creating
+ Container dbsec12-ad6bgahy-postgres-1  Created
+ Container dbsec12-ad6bgahy-postgres-1  Starting
+ Container dbsec12-ad6bgahy-postgres-1  Started
+exit 0
+
+2026-11-20T10:06:18+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json ps -q postgres
+6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd
+exit 0
+
+2026-11-20T10:06:19+01:00  $ docker exec 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+
+2026-11-20T10:06:19+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd chown postgres:postgres /backup /archive
+
+exit 0
+
+2026-11-20T10:06:20+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd chmod 700 /backup /archive
+
+exit 0
+SQL
+SHOW wal_level;
+SHOW archive_mode;
+SHOW archive_command;
+CHECKPOINT;
+SELECT pg_switch_wal();
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+replica
+on
+test ! -f /archive/%f && cp %p /archive/%f
+CHECKPOINT
+0/2000188
+exit 0
+SQL
+SELECT archived_count,last_archived_wal,failed_count FROM pg_stat_archiver;
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+2|000000010000000000000002|0
+exit 0
+
+2026-11-20T10:06:20+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd ls -lh /archive
+total 32M
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000001
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000002
+exit 0
+SQL
+SELECT count(*),md5(string_agg(row(id,tekst,oprettet)::text,',' ORDER BY id)) FROM vigtige_data;
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+100|ee0da86b7ee5744c888bbfb56a883794
+exit 0
+
+2026-11-20T10:06:20+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd pg_dump -U studie -Fc -f /backup/logisk.dump studiebase
+
+exit 0
+SQL
+DROP TABLE vigtige_data;
+SELECT to_regclass('public.vigtige_data') IS NULL;
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+DROP TABLE
+t
+exit 0
+
+2026-11-20T10:06:20+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd createdb -U studie gendannelse
+
+exit 0
+
+2026-11-20T10:06:20+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd pg_restore -U studie --exit-on-error --no-owner -d gendannelse /backup/logisk.dump
+
+exit 0
+SQL
+SELECT count(*),md5(string_agg(row(id,tekst,oprettet)::text,',' ORDER BY id)) FROM vigtige_data;
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d gendannelse
+100|ee0da86b7ee5744c888bbfb56a883794
+exit 0
+
+2026-11-20T10:06:20+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd pg_restore -U studie --exit-on-error --no-owner -d studiebase /backup/logisk.dump
+
+exit 0
+SQL
+DROP DATABASE gendannelse;
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+DROP DATABASE
+exit 0
+SQL
+INSERT INTO vigtige_data(tekst) VALUES('MARKØR før katastrofe');
+CHECKPOINT;
+SELECT clock_timestamp(),pg_current_wal_lsn();
+
+2026-11-20T10:06:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+INSERT 0 1
+CHECKPOINT
+2026-11-20 09:06:20.999767+00|0/34C2C08
+exit 0
+
+2026-11-20T10:06:21+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd pg_basebackup -U studie -D /backup/fysisk -Ft -z -X stream -c fast -P
+waiting for checkpoint
+31886/31886 kB (100%), 0/1 tablespace
+31886/31886 kB (100%), 1/1 tablespace
+exit 0
+
+2026-11-20T10:06:21+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd ls -lh /backup/fysisk /backup/logisk.dump
+-rw-r--r-- 1 root root 3.4K Nov 20 09:06 /backup/logisk.dump
+
+/backup/fysisk:
+total 4.3M
+-rw------- 1 root root 179K Nov 20 09:06 backup_manifest
+-rw------- 1 root root 4.1M Nov 20 09:06 base.tar.gz
+-rw------- 1 root root  17K Nov 20 09:06 pg_wal.tar.gz
+exit 0
+SQL
+UPDATE vigtige_data SET tekst='MARKØR efter basebackup' WHERE tekst='MARKØR før katastrofe';
+
+2026-11-20T10:06:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+UPDATE 1
+exit 0
+SQL
+SELECT clock_timestamp();
+
+2026-11-20T10:06:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+2026-11-20 09:06:21.772931+00
+exit 0
+SQL
+SELECT pg_current_wal_lsn(),count(*),count(*) FILTER(WHERE tekst='MARKØR efter basebackup') FROM vigtige_data;
+
+2026-11-20T10:06:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+0/5001BD0|101|1
+exit 0
+SQL
+INSERT INTO vigtige_data(tekst) SELECT 'EFTER katastrofe '||i FROM generate_series(1,50) i;
+SELECT count(*) FROM vigtige_data;
+
+2026-11-20T10:06:21+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+INSERT 0 50
+151
+exit 0
+SQL
+DROP TABLE vigtige_data;
+CHECKPOINT;
+SELECT to_regclass('public.vigtige_data') IS NULL;
+
+2026-11-20T10:06:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+DROP TABLE
+CHECKPOINT
+t
+exit 0
+SQL
+SELECT pg_walfile_name(pg_current_wal_insert_lsn());
+
+2026-11-20T10:06:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+000000010000000000000005
+exit 0
+SQL
+SELECT pg_switch_wal();
+
+2026-11-20T10:06:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+0/500FF08
+exit 0
+SQL
+SELECT archived_count,last_archived_wal,failed_count FROM pg_stat_archiver;
+
+2026-11-20T10:06:22+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+6|000000010000000000000005|0
+exit 0
+
+2026-11-20T10:06:22+01:00  $ docker exec -i 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd ls -lh /archive
+total 81M
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000001
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000002
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000003
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000004
+-rw------- 1 root root 338 Nov 20 09:06 000000010000000000000004.00000028.backup
+-rw------- 1 root root 16M Nov 20 09:06 000000010000000000000005
+exit 0
+
+2026-11-20T10:06:22+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json config --format json
+{
+  "name": "dbsec12-ad6bgahy",
+  "networks": {
+    "default": {
+      "name": "dbsec12-ad6bgahy_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec12-ad6bgahy_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/db.pass"
+    }
+  },
+  "services": {
+    "gendannet": {
+      "cpus": 1,
+      "command": null,
+      "entrypoint": [
+        "bash",
+        "-ec",
+        "set -eu\nd=/var/lib/postgresql/18/docker\ninstall -d -m 700 -o postgres -g postgres \"$$d\"\ntar xzf /backup/fysisk/base.tar.gz -C \"$$d\"\ninstall -d -m 700 \"$$d/pg_wal\"\ntar xzf /backup/fysisk/pg_wal.tar.gz -C \"$$d/pg_wal\"\ntouch \"$$d/recovery.signal\"\nchown -R postgres:postgres \"$$d\"\nexec docker-entrypoint.sh postgres -c archive_mode=off -c \"restore_command=cp /archive/%f %p\" -c \"recovery_target_time=$$1\" -c recovery_target_action=promote",
+        "gendan",
+        "2026-11-20 09:06:21.772931+00"
+      ],
+      "image": "postgres:18",
+      "mem_limit": "805306368",
+      "networks": {
+        "default": null
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "recovery",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/backup",
+          "target": "/backup",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/archive",
+          "target": "/archive",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "wal_level=replica",
+        "-c",
+        "archive_mode=on",
+        "-c",
+        "archive_command=test ! -f /archive/%f \u0026\u0026 cp %p /archive/%f"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/archive",
+          "target": "/archive",
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/backup",
+          "target": "/backup",
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec12-ad6bgahy_data"
+    },
+    "recovery": {
+      "name": "dbsec12-ad6bgahy_recovery"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:06:22+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json up -d
+ Volume "dbsec12-ad6bgahy_recovery"  Creating
+ Volume "dbsec12-ad6bgahy_recovery"  Created
+ Container dbsec12-ad6bgahy-postgres-1  Running
+ Container dbsec12-ad6bgahy-gendannet-1  Creating
+ Container dbsec12-ad6bgahy-gendannet-1  Created
+ Container dbsec12-ad6bgahy-gendannet-1  Starting
+ Container dbsec12-ad6bgahy-gendannet-1  Started
+exit 0
+
+2026-11-20T10:06:22+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json ps -q postgres
+6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd
+exit 0
+
+2026-11-20T10:06:23+01:00  $ docker exec 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+
+2026-11-20T10:06:23+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json ps -q gendannet
+30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601
+exit 0
+
+2026-11-20T10:06:23+01:00  $ docker exec 30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT pg_is_in_recovery();
+
+2026-11-20T10:06:23+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+f
+exit 0
+SQL
+SELECT count(*),count(*) FILTER(WHERE tekst LIKE 'EFTER%'),count(*) FILTER(WHERE tekst='MARKØR efter basebackup'),pg_is_in_recovery() FROM vigtige_data;
+
+2026-11-20T10:06:24+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+101|0|1|f
+exit 0
+
+2026-11-20T10:06:24+01:00  $ docker logs --timestamps 30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601
+2026-11-20T09:06:23.137780260Z 
+2026-11-20T09:06:23.137805427Z PostgreSQL Database directory appears to contain a database; Skipping initialization
+2026-11-20T09:06:23.137807802Z 
+2026-11-20T09:06:23.156030177Z 2026-11-20 09:06:23.155 UTC [1] LOG:  starting PostgreSQL 18.7 (Debian 18.7-1.pgdg13+5) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-11-20T09:06:23.156145177Z 2026-11-20 09:06:23.156 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-11-20T09:06:23.156434635Z 2026-11-20 09:06:23.156 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-11-20T09:06:23.158161510Z 2026-11-20 09:06:23.158 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-11-20T09:06:23.160733802Z 2026-11-20 09:06:23.160 UTC [40] LOG:  database system was interrupted; last known up at 2026-11-20 09:06:21 UTC
+2026-11-20T09:06:23.247222927Z cp: cannot stat '/archive/00000002.history': No such file or directory
+2026-11-20T09:06:23.247593885Z 2026-11-20 09:06:23.247 UTC [40] LOG:  starting backup recovery with redo LSN 0/4000028, checkpoint LSN 0/4000080, on timeline ID 1
+2026-11-20T09:06:23.266667635Z 2026-11-20 09:06:23.266 UTC [40] LOG:  restored log file "000000010000000000000004" from archive
+2026-11-20T09:06:23.267225718Z 2026-11-20 09:06:23.267 UTC [58] FATAL:  the database system is starting up
+2026-11-20T09:06:23.279180218Z 2026-11-20 09:06:23.279 UTC [40] LOG:  starting point-in-time recovery to 2026-11-20 09:06:21.772931+00
+2026-11-20T09:06:23.281549093Z 2026-11-20 09:06:23.281 UTC [40] LOG:  redo starts at 0/4000028
+2026-11-20T09:06:23.296151593Z 2026-11-20 09:06:23.296 UTC [40] LOG:  restored log file "000000010000000000000005" from archive
+2026-11-20T09:06:23.307356093Z 2026-11-20 09:06:23.307 UTC [40] LOG:  completed backup recovery with redo LSN 0/4000028 and end LSN 0/4000120
+2026-11-20T09:06:23.307370968Z 2026-11-20 09:06:23.307 UTC [40] LOG:  consistent recovery state reached at 0/4000120
+2026-11-20T09:06:23.307372343Z 2026-11-20 09:06:23.307 UTC [1] LOG:  database system is ready to accept read-only connections
+2026-11-20T09:06:23.308580802Z cp: cannot stat '/archive/000000010000000000000006': No such file or directory
+2026-11-20T09:06:23.308800677Z 2026-11-20 09:06:23.308 UTC [40] LOG:  recovery stopping before commit of transaction 816, time 2026-11-20 09:06:22.005566+00
+2026-11-20T09:06:23.308807552Z 2026-11-20 09:06:23.308 UTC [40] LOG:  redo done at 0/5004298 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.02 s
+2026-11-20T09:06:23.308808968Z 2026-11-20 09:06:23.308 UTC [40] LOG:  last completed transaction was at log time 2026-11-20 09:06:21.674678+00
+2026-11-20T09:06:23.330932218Z 2026-11-20 09:06:23.330 UTC [40] LOG:  restored log file "000000010000000000000005" from archive
+2026-11-20T09:06:23.345920927Z cp: cannot stat '/archive/00000002.history': No such file or directory
+2026-11-20T09:06:23.346099552Z 2026-11-20 09:06:23.346 UTC [40] LOG:  selected new timeline ID: 2
+2026-11-20T09:06:23.360782760Z cp: cannot stat '/archive/00000001.history': No such file or directory
+2026-11-20T09:06:23.362412593Z 2026-11-20 09:06:23.362 UTC [40] LOG:  archive recovery complete
+2026-11-20T09:06:23.363142635Z 2026-11-20 09:06:23.363 UTC [38] LOG:  checkpoint starting: end-of-recovery immediate wait
+2026-11-20T09:06:23.369123885Z 2026-11-20 09:06:23.369 UTC [38] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.002 s, sync=0.002 s, total=0.007 s; sync files=6, longest=0.001 s, average=0.001 s; distance=16400 kB, estimate=16400 kB; lsn=0/5004298, redo lsn=0/5004298
+2026-11-20T09:06:23.370783927Z 2026-11-20 09:06:23.370 UTC [1] LOG:  database system is ready to accept connections
+exit 0
+
+2026-11-20T10:06:24+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json ps -a -q
+30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601
+6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd
+exit 0
+
+2026-11-20T10:06:24+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 30474a43c0e492f28dd213d1ea5f87a2fdc5d9d96fcd8908dd1bda6714a31601
+dbsec12-ad6bgahy
+exit 0
+
+2026-11-20T10:06:24+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 6e9a0fea46b69be35e9aed07a37051529570b74c72b3d393c1f3edeff0a861dd
+dbsec12-ad6bgahy
+exit 0
+
+2026-11-20T10:06:24+01:00  $ docker compose -p dbsec12-ad6bgahy -f [PROJEKTMAPPE]/kontrol/dbsec12-ad6bgahy/compose.json down -v --timeout 8
+ Container dbsec12-ad6bgahy-gendannet-1  Stopping
+ Container dbsec12-ad6bgahy-postgres-1  Stopping
+ Container dbsec12-ad6bgahy-gendannet-1  Stopped
+ Container dbsec12-ad6bgahy-gendannet-1  Removing
+ Container dbsec12-ad6bgahy-gendannet-1  Removed
+ Container dbsec12-ad6bgahy-postgres-1  Stopped
+ Container dbsec12-ad6bgahy-postgres-1  Removing
+ Container dbsec12-ad6bgahy-postgres-1  Removed
+ Volume dbsec12-ad6bgahy_data  Removing
+ Volume dbsec12-ad6bgahy_recovery  Removing
+ Network dbsec12-ad6bgahy_default  Removing
+ Volume dbsec12-ad6bgahy_data  Removed
+ Volume dbsec12-ad6bgahy_recovery  Removed
+ Network dbsec12-ad6bgahy_default  Removed
+exit 0
+2026-11-20T10:06:24+01:00  PASS

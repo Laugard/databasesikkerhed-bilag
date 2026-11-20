@@ -1,0 +1,234 @@
+
+2026-11-20T10:05:10+01:00  $ docker compose -p dbsec06-w2cco0qb -f [PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/compose.json config --format json
+{
+  "name": "dbsec06-w2cco0qb",
+  "networks": {
+    "default": {
+      "name": "dbsec06-w2cco0qb_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec06-w2cco0qb_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres:18",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec06-w2cco0qb_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:05:10+01:00  $ docker compose -p dbsec06-w2cco0qb -f [PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/compose.json up -d
+ Network dbsec06-w2cco0qb_default  Creating
+ Network dbsec06-w2cco0qb_default  Created
+ Volume "dbsec06-w2cco0qb_data"  Creating
+ Volume "dbsec06-w2cco0qb_data"  Created
+ Container dbsec06-w2cco0qb-postgres-1  Creating
+ Container dbsec06-w2cco0qb-postgres-1  Created
+ Container dbsec06-w2cco0qb-postgres-1  Starting
+ Container dbsec06-w2cco0qb-postgres-1  Started
+exit 0
+
+2026-11-20T10:05:10+01:00  $ docker compose -p dbsec06-w2cco0qb -f [PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/compose.json ps -q postgres
+7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9
+exit 0
+
+2026-11-20T10:05:13+01:00  $ docker exec 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT count(*) FROM store_data;
+
+2026-11-20T10:05:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+500000
+exit 0
+SQL
+CREATE VIEW aktivitet_overvaagning AS SELECT pid,usename,application_name,client_addr,state,
+ clock_timestamp()-query_start AS varighed,clock_timestamp()-state_change AS tilstandsvarighed,
+ query,backend_start,xact_start,backend_type FROM pg_stat_activity WHERE state<>'idle';
+
+2026-11-20T10:05:13+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+CREATE VIEW
+exit 0
+Åbner lab_lang / docker exec -i -e PGAPPNAME=lab_lang -e 'PGOPTIONS=-c statement_timeout=30000 -c idle_in_transaction_session_timeout=45000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Åbner lab_inaktiv / docker exec -i -e PGAPPNAME=lab_inaktiv -e 'PGOPTIONS=-c statement_timeout=30000 -c idle_in_transaction_session_timeout=45000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+lab_lang > SELECT pg_backend_pid();
+lab_lang < 169
+lab_inaktiv > SELECT pg_backend_pid();
+lab_inaktiv < 170
+lab_lang > SELECT pg_sleep(60);
+lab_inaktiv > BEGIN;
+SELECT id FROM store_data WHERE id=1 FOR UPDATE;
+lab_inaktiv < BEGIN
+1
+SQL
+SELECT pid,usename,application_name,client_addr,state,varighed,query,xact_start FROM aktivitet_overvaagning WHERE application_name IN ('lab_lang','lab_inaktiv') ORDER BY 3;
+
+2026-11-20T10:05:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+170|studie|lab_inaktiv||idle in transaction|00:00:05.429477|SELECT id FROM store_data WHERE id=1 FOR UPDATE;|2026-11-20 09:05:14.142329+00
+169|studie|lab_lang||active|00:00:05.429551|SELECT pg_sleep(60);|2026-11-20 09:05:14.14234+00
+exit 0
+SQL
+SELECT pid,query FROM aktivitet_overvaagning WHERE application_name='lab_lang' AND varighed>interval '5 seconds';
+
+2026-11-20T10:05:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+169|SELECT pg_sleep(60);
+exit 0
+SQL
+SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE pid=169 AND application_name='lab_lang' AND datname=current_database();
+
+2026-11-20T10:05:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+t
+exit 0
+lab_lang < ERROR:  57014: canceling statement due to user request
+LOCATION:  ProcessInterrupts, postgres.c:3468
+lab_lang exit 3
+SQL
+SELECT locktype,mode,granted FROM pg_locks WHERE pid=170;
+
+2026-11-20T10:05:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+relation|RowShareLock|t
+relation|RowShareLock|t
+relation|RowShareLock|t
+relation|RowShareLock|t
+virtualxid|ExclusiveLock|t
+transactionid|ExclusiveLock|t
+exit 0
+SQL
+SELECT pg_terminate_backend(pid,3000) FROM pg_stat_activity WHERE pid=170 AND application_name='lab_inaktiv' AND state='idle in transaction';
+
+2026-11-20T10:05:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+t
+exit 0
+lab_inaktiv > SELECT 1;
+lab_inaktiv < FATAL:  57P01: terminating connection due to administrator command
+LOCATION:  ProcessInterrupts, postgres.c:3358
+server closed the connection unexpectedly
+	This probably means the server terminated abnormally
+	before or while processing the request.
+connection to server was lost
+lab_inaktiv exit 2
+SQL
+SELECT count(*) FROM pg_stat_activity WHERE pid IN (170,169);
+
+2026-11-20T10:05:19+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+0
+exit 0
+Åbner lab_holder / docker exec -i -e PGAPPNAME=lab_holder -e 'PGOPTIONS=-c statement_timeout=30000 -c idle_in_transaction_session_timeout=45000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Åbner lab_venter / docker exec -i -e PGAPPNAME=lab_venter -e 'PGOPTIONS=-c statement_timeout=30000 -c idle_in_transaction_session_timeout=45000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+lab_holder > BEGIN;
+SELECT id FROM store_data WHERE id=1 FOR UPDATE;
+lab_holder < BEGIN
+1
+lab_venter > SELECT id FROM store_data WHERE id=1 FOR UPDATE;
+SQL
+SELECT a.pid,b.pid,a.wait_event_type,a.query,b.state FROM pg_stat_activity a
+ JOIN pg_stat_activity b ON b.pid=ANY(pg_blocking_pids(a.pid))
+ WHERE a.application_name='lab_venter' AND b.application_name='lab_holder';
+
+2026-11-20T10:05:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+226|225|Lock|SELECT id FROM store_data WHERE id=1 FOR UPDATE;|idle in transaction
+exit 0
+lab_holder > ROLLBACK;
+lab_holder < ROLLBACK
+lab_venter < 1
+lab_holder > BEGIN;
+UPDATE store_data SET numero=numero+1 WHERE id=1;
+lab_holder < BEGIN
+UPDATE 1
+lab_venter > UPDATE store_data SET numero=numero+2 WHERE id=1;
+SQL
+SELECT a.pid,b.pid,a.wait_event_type,a.query,b.state FROM pg_stat_activity a
+ JOIN pg_stat_activity b ON b.pid=ANY(pg_blocking_pids(a.pid))
+ WHERE a.application_name='lab_venter' AND b.application_name='lab_holder';
+
+2026-11-20T10:05:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+226|225|Lock|UPDATE store_data SET numero=numero+2 WHERE id=1;|idle in transaction
+exit 0
+lab_holder > ROLLBACK;
+lab_holder < ROLLBACK
+lab_venter < UPDATE 1
+lab_holder exit 0
+lab_venter exit 0
+SQL
+SELECT numero FROM store_data WHERE id=1;
+
+2026-11-20T10:05:20+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9 psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+3
+exit 0
+
+2026-11-20T10:05:20+01:00  $ docker compose -p dbsec06-w2cco0qb -f [PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/compose.json ps -a -q
+7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9
+exit 0
+
+2026-11-20T10:05:20+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' 7ba5cb544b275c72b0f3f56318e611fdb4348b88215724d5792eddc7654fa1c9
+dbsec06-w2cco0qb
+exit 0
+
+2026-11-20T10:05:20+01:00  $ docker compose -p dbsec06-w2cco0qb -f [PROJEKTMAPPE]/kontrol/dbsec06-w2cco0qb/compose.json down -v --timeout 8
+ Container dbsec06-w2cco0qb-postgres-1  Stopping
+ Container dbsec06-w2cco0qb-postgres-1  Stopped
+ Container dbsec06-w2cco0qb-postgres-1  Removing
+ Container dbsec06-w2cco0qb-postgres-1  Removed
+ Volume dbsec06-w2cco0qb_data  Removing
+ Network dbsec06-w2cco0qb_default  Removing
+ Volume dbsec06-w2cco0qb_data  Removed
+ Network dbsec06-w2cco0qb_default  Removed
+exit 0
+2026-11-20T10:05:20+01:00  PASS

@@ -1,0 +1,43 @@
+Miljøkontrol / lokal arbejdsstation
+Før 2026-11-20T09:00:55.580854+00:00
+Efter sidste gentagelse 2026-11-20T09:19:06.661013+00:00
+containers: 5 før, 5 efter. Identiske registreringer.
+networks: 4 før, 4 efter. Identiske registreringer.
+volumes: 10 før, 10 efter. Identiske registreringer.
+/[ANDEN CONTAINER]: [ID], running, samme starttid, genstartstæller og mounts.
+/[ANDEN CONTAINER]: [ID], exited, samme starttid, genstartstæller og mounts.
+/[ANDEN CONTAINER]: [ID], exited, samme starttid, genstartstæller og mounts.
+/[ANDEN CONTAINER]: [ID], exited, samme starttid, genstartstæller og mounts.
+/[ANDEN CONTAINER]: [ID], running, samme starttid, genstartstæller og mounts.
+$ sw_vers
+ProductName:		macOS
+ProductVersion:		15.5
+BuildVersion:		24F74
+exit 0
+$ uname -m
+arm64
+exit 0
+$ docker version --format client={{.Client.Version}} server={{.Server.Version}}
+client=27.3.1 server=27.3.1
+exit 0
+$ docker compose version
+Docker Compose version v2.29.7-desktop.1
+exit 0
+$ docker info --format CPU={{.NCPU}} RAM={{.MemTotal}}
+CPU=8 RAM=8218251264
+exit 0
+$ docker image inspect postgres:18 --format {{index .RepoDigests 0}}
+postgres@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
+exit 0
+$ git -C kilde rev-parse HEAD
+8e6c75bd0356755c88e3cd8c3cd58f879b80dec8
+exit 0
+$ git -C kilde status --porcelain
+
+exit 0
+$ /usr/libexec/PlistBuddy -c Print CFBundleShortVersionString /Applications/Docker.app/Contents/Info.plist
+4.35.1
+exit 0
+
+Før og efter blev indsamlet med docker ps -aq --no-trunc, docker inspect <container-id>, docker network ls --no-trunc og docker volume ls. Ingen indholdslæsning i fremmede datavolumener.
+exit 0

@@ -1,0 +1,206 @@
+
+2026-11-20T10:15:49+01:00  $ docker compose -p dbsec10-fdttonsi -f [PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/compose.json config --format json
+{
+  "name": "dbsec10-fdttonsi",
+  "networks": {
+    "default": {
+      "name": "dbsec10-fdttonsi_default",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "dbpass": {
+      "name": "dbsec10-fdttonsi_dbpass",
+      "file": "[PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/db.pass"
+    }
+  },
+  "services": {
+    "postgres": {
+      "cpus": 2,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "work_mem=4MB",
+        "-c",
+        "effective_cache_size=512MB"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "studiebase",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/dbpass",
+        "POSTGRES_USER": "studie"
+      },
+      "image": "postgres@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a",
+      "mem_limit": "1610612736",
+      "memswap_limit": "1610612736",
+      "networks": {
+        "default": null
+      },
+      "secrets": [
+        {
+          "source": "dbpass",
+          "target": "/run/secrets/dbpass"
+        }
+      ],
+      "shm_size": "201326592",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "data",
+          "target": "/var/lib/postgresql",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "[PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/seed.sql",
+          "target": "/docker-entrypoint-initdb.d/01-init.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    }
+  },
+  "volumes": {
+    "data": {
+      "name": "dbsec10-fdttonsi_data"
+    }
+  }
+}
+exit 0
+
+2026-11-20T10:15:49+01:00  $ docker ps -aq --filter label=com.docker.compose.project=dbsec10-fdttonsi
+
+exit 0
+
+2026-11-20T10:15:50+01:00  $ docker volume ls -q --filter label=com.docker.compose.project=dbsec10-fdttonsi
+
+exit 0
+
+2026-11-20T10:15:50+01:00  $ docker network ls -q --filter label=com.docker.compose.project=dbsec10-fdttonsi
+
+exit 0
+
+2026-11-20T10:15:50+01:00  $ docker compose -p dbsec10-fdttonsi -f [PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/compose.json up -d
+ Network dbsec10-fdttonsi_default  Creating
+ Network dbsec10-fdttonsi_default  Created
+ Volume "dbsec10-fdttonsi_data"  Creating
+ Volume "dbsec10-fdttonsi_data"  Created
+ Container dbsec10-fdttonsi-postgres-1  Creating
+ Container dbsec10-fdttonsi-postgres-1  Created
+ Container dbsec10-fdttonsi-postgres-1  Starting
+ Container dbsec10-fdttonsi-postgres-1  Started
+exit 0
+
+2026-11-20T10:15:50+01:00  $ docker compose -p dbsec10-fdttonsi -f [PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/compose.json ps -q postgres
+bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc
+exit 0
+
+2026-11-20T10:15:51+01:00  $ docker exec bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc psql -XAt -U studie -d studiebase -c 'SELECT current_setting('"'"'server_version'"'"')'
+18.7 (Debian 18.7-1.pgdg13+5)
+exit 0
+SQL
+SELECT navn,pris FROM produkter ORDER BY id;
+SELECT count(*) FROM audit_log;
+
+2026-11-20T10:15:51+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+Bog|199.00
+Notesbog|49.00
+Pen|12.50
+0
+exit 0
+SQL
+CREATE FUNCTION log_aendring() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ INSERT INTO audit_log(tabel,handling,detaljer) VALUES(TG_TABLE_NAME,TG_OP,
+    format('id=%s bruger=%s',coalesce(NEW.id,OLD.id),session_user));
+ RETURN NULL;
+END $$;
+CREATE TRIGGER produkter_audit AFTER INSERT OR UPDATE OR DELETE ON produkter FOR EACH ROW EXECUTE FUNCTION log_aendring();
+UPDATE produkter SET pris=249 WHERE navn='Bog';
+INSERT INTO produkter(navn,pris) VALUES('Kalender',89);
+DELETE FROM produkter WHERE navn='Pen';
+SELECT handling,detaljer,tid FROM audit_log ORDER BY id;
+CREATE FUNCTION tjek_pris() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF NEW.pris<0 THEN RAISE EXCEPTION 'Negativ pris' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER produkter_tjek_pris BEFORE INSERT OR UPDATE ON produkter FOR EACH ROW EXECUTE FUNCTION tjek_pris();
+SELECT tgname,tgtype,tgenabled FROM pg_trigger WHERE NOT tgisinternal;
+
+2026-11-20T10:15:51+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+CREATE FUNCTION
+CREATE TRIGGER
+UPDATE 1
+INSERT 0 1
+DELETE 1
+UPDATE|id=1 bruger=studie|2026-11-20 09:15:52.026033
+INSERT|id=4 bruger=studie|2026-11-20 09:15:52.027503
+DELETE|id=3 bruger=studie|2026-11-20 09:15:52.02796
+CREATE FUNCTION
+CREATE TRIGGER
+produkter_audit|29|O
+produkter_tjek_pris|23|O
+exit 0
+SQL
+UPDATE produkter SET pris=-5 WHERE navn='Bog';
+
+2026-11-20T10:15:52+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ERROR:  23514: Negativ pris
+CONTEXT:  PL/pgSQL function tjek_pris() line 3 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3925
+exit 3
+Bekræftet forventet afvisning / 23514.*Negativ pris
+SQL
+INSERT INTO produkter(navn,pris) VALUES('Ugyldig',-2);
+
+2026-11-20T10:15:52+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+ERROR:  23514: Negativ pris
+CONTEXT:  PL/pgSQL function tjek_pris() line 3 at RAISE
+LOCATION:  exec_stmt_raise, pl_exec.c:3925
+exit 3
+Bekræftet forventet afvisning / 23514.*Negativ pris
+SQL
+SELECT pris,(SELECT count(*) FROM audit_log),(SELECT count(*) FROM produkter WHERE navn='Ugyldig') FROM produkter WHERE navn='Bog';
+ALTER TABLE produkter DISABLE TRIGGER produkter_audit;
+UPDATE produkter SET pris=1 WHERE navn='Bog';
+SELECT pris,(SELECT count(*) FROM audit_log) FROM produkter WHERE navn='Bog';
+ALTER TABLE produkter ENABLE TRIGGER produkter_audit;
+UPDATE produkter SET pris=2 WHERE navn='Bog';
+SELECT pris,(SELECT count(*) FROM audit_log) FROM produkter WHERE navn='Bog';
+
+2026-11-20T10:15:52+01:00  $ docker exec -i -e 'PGOPTIONS=-c statement_timeout=90000 -c idle_in_transaction_session_timeout=60000' bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc psql -XAt -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U studie -d studiebase
+249.00|3|0
+ALTER TABLE
+UPDATE 1
+1.00|3
+ALTER TABLE
+UPDATE 1
+2.00|4
+exit 0
+
+2026-11-20T10:15:52+01:00  $ docker compose -p dbsec10-fdttonsi -f [PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/compose.json ps -a -q
+bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc
+exit 0
+
+2026-11-20T10:15:52+01:00  $ docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' bfe9a21526c8c24efe21b7b97bb8c0677b91bf65ff80e91cebb19c2d9da47adc
+dbsec10-fdttonsi
+exit 0
+
+2026-11-20T10:15:52+01:00  $ docker compose -p dbsec10-fdttonsi -f [PROJEKTMAPPE]/kontrol/dbsec10-fdttonsi/compose.json down -v --timeout 8
+ Container dbsec10-fdttonsi-postgres-1  Stopping
+ Container dbsec10-fdttonsi-postgres-1  Stopped
+ Container dbsec10-fdttonsi-postgres-1  Removing
+ Container dbsec10-fdttonsi-postgres-1  Removed
+ Volume dbsec10-fdttonsi_data  Removing
+ Network dbsec10-fdttonsi_default  Removing
+ Volume dbsec10-fdttonsi_data  Removed
+ Network dbsec10-fdttonsi_default  Removed
+exit 0
+2026-11-20T10:15:52+01:00  PASS
